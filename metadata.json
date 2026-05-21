@@ -1,0 +1,8 @@
+{
+  "name": "Plataforma Comunitária de Apoio",
+  "description": "Uma plataforma moderna e inovadora de apoio, denúncia anónima e informação comunitária contra abusos e violência doméstica em Moçambique, com central de denúncias para administração e chat sigiloso inteligente alimentado por Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
