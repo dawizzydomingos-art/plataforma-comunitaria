@@ -1,0 +1,35 @@
+{
+  "name": "Plataforma de Apoio Comunitário de Moçambique",
+  "short_name": "Apoio MZ",
+  "description": "Plataforma de registo anónimo de denúncias, apoio a vítimas e consulta jurídica sob vigência das leis em Moçambique.",
+  "start_url": "/?utm_source=android_app&pwa=true",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#1e1b4b",
+  "icons": [
+    {
+      "src": "https://images.unsplash.com/photo-1544027993-37dbfe43562a?auto=format&fit=crop&w=192&h=192&q=80",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "https://images.unsplash.com/photo-1544027993-37dbfe43562a?auto=format&fit=crop&w=512&h=512&q=80",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ],
+  "categories": ["social", "government", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Nova Denúncia",
+      "url": "/?utm_source=android_shortcut&pwa=true&action=denunciar",
+      "description": "Registar uma queixa sigilosa imediatamente"
+    },
+    {
+      "name": "Falar com Assistente",
+      "url": "/?utm_source=android_shortcut&pwa=true&action=chat",
+      "description": "Iniciar uma conversa confidencial de apoio"
+    }
+  ]
+}

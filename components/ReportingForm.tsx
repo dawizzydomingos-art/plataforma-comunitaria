@@ -22,6 +22,8 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
   const [descricao, setDescricao] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [submittedCode, setSubmittedCode] = useState("");
 
   const incidentTypes = [
     "Violência doméstica",
@@ -72,13 +74,13 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
 
       const data = await response.json();
       if (data.success) {
-        triggerToast("Denúncia enviada com sucesso! Os administradores irão rever com sigilo.", "success");
+        setSubmittedCode(userCode);
         setTipo("");
         setLocal("");
         setQuando("");
         setTestemunhas("");
         setDescricao("");
-        onSuccess();
+        setShowSuccessModal(true); // Open the beautiful stylized modal
         onRefreshStats();
       } else {
         throw new Error(data.error || "Erro desconhecido.");
@@ -212,7 +214,7 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-5 rounded-xl border-none shadow-md shadow-red-200 hover:shadow-lg hover:shadow-red-300 disabled:bg-slate-300 disabled:shadow-none hover:scale-[1.01] transition-all cursor-pointer text-sm flex items-center justify-center gap-2"
+              className="w-full bg-red-600 hover:bg-black active:bg-black text-white font-bold py-3 px-5 rounded-xl border-none shadow-md shadow-red-200 hover:shadow-lg hover:shadow-black hover:shadow-red-350 disabled:bg-slate-300 disabled:shadow-none hover:scale-[1.01] transition-all cursor-pointer text-sm flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>
@@ -237,7 +239,7 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
             <div className="space-y-2">
               <a
                 href="tel:112"
-                className="flex items-center justify-center gap-2 w-full bg-white hover:bg-red-50 text-red-700 font-bold py-3.5 px-4 rounded-xl text-sm border-none shadow-sm transition-all text-center"
+                className="flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-black active:bg-black text-white font-bold py-3.5 px-4 rounded-xl text-sm border-none shadow-sm transition-all text-center"
               >
                 📞 Ligar 112 — Polícia de Moçambique
               </a>
@@ -280,6 +282,72 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
           </div>
         </div>
       </div>
+
+      {/* SUCCESS MODAL OVERLAY */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white max-w-lg w-full rounded-2xl shadow-2xl border border-slate-100 overflow-hidden text-center p-8 space-y-6 animate-fadeIn">
+            
+            {/* Elegant Success Icon Ring */}
+            <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full mx-auto flex items-center justify-center relative shadow-inner">
+              <CheckCircle className="w-10 h-10 text-emerald-600" />
+              <div className="absolute inset-0 rounded-full border border-emerald-400 animate-ping opacity-35" />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">
+                Submetido com Sucesso!
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-slate-950 tracking-tight leading-tight pt-1">
+                Denúncia de Violência Registada
+              </h3>
+              <p className="text-xs text-slate-550 leading-relaxed font-semibold max-w-sm mx-auto">
+                A sua denúncia foi encriptada e guardada com êxito na base de dados administrativa e sincronizada. Os administradores irão rever o conteúdo com sigilo absoluto.
+              </p>
+            </div>
+
+            {/* Code Highlight Box */}
+            <div className="p-4 bg-slate-50 border border-slate-150/60 rounded-xl space-y-2 max-w-sm mx-auto text-left">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block text-center">
+                Código Anónimo de Acompanhamento:
+              </span>
+              <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 p-2.5 rounded-lg">
+                <span className="font-mono font-black text-sm tracking-widest text-slate-900 select-all">
+                  {submittedCode}
+                </span>
+                <span className="text-[9px] font-extrabold text-indigo-700 uppercase bg-indigo-50 px-2 py-0.5 rounded border border-indigo-150">
+                  Guardado
+                </span>
+              </div>
+              <p className="text-[9px] text-slate-450 leading-snug font-medium pt-1">
+                ⚠️ <strong>Guarde este código de utente!</strong> Terá de o introduzir sempre que pretender consultar o progresso do seu caso sem revelar a sua identidade.
+              </p>
+            </div>
+
+            {/* Privacy Safeguard Notice */}
+            <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-xl max-w-sm mx-auto text-[10px] leading-snug font-semibold text-indigo-950 flex items-start gap-2.5 text-left">
+              <Shield className="w-4 h-4 text-indigo-600 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>Privacidade Blindada:</strong> O seu IP de ligação e as especificidades do browser foram limpos. O canal de segurança com o Google Sheets foi acionado com segurança.
+              </span>
+            </div>
+
+            {/* Continue Button */}
+            <div className="pt-2 max-w-sm mx-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  onSuccess(); // triggers the history check tab automatically
+                }}
+                className="w-full bg-blue-600 hover:bg-black active:bg-black text-white font-extrabold py-3.5 px-5 rounded-xl text-xs border-none shadow-md shadow-blue-200 hover:shadow-lg hover:shadow-black hover:scale-[1.01] transition-all cursor-pointer"
+              >
+                Entendido, Acompanhar Caso 🔍
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

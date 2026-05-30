@@ -16,13 +16,159 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
   const [statusFilter, setStatusFilter] = useState("all");
   const [actionMsg, setActionMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
+  // WhatsApp, Telegram, Google Sheets & Airtable notification states
+  const [whatsAppEnabled, setWhatsAppEnabled] = useState(true);
+  const [whatsAppPhone, setWhatsAppPhone] = useState("+258869894030");
+  const [whatsAppApiKey, setWhatsAppApiKey] = useState("");
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState("");
+  const [telegramChatId, setTelegramChatId] = useState("");
+  const [sheetsEnabled, setSheetsEnabled] = useState(false);
+  const [sheetsUrl, setSheetsUrl] = useState("");
+  const [airtableEnabled, setAirtableEnabled] = useState(false);
+  const [airtableApiKey, setAirtableApiKey] = useState("");
+  const [airtableBaseId, setAirtableBaseId] = useState("");
+  const [airtableTableName, setAirtableTableName] = useState("Denuncias");
+  const [isSavingWhatsApp, setIsSavingWhatsApp] = useState(false);
+
+  // Testing states to allow testing connection in real time to Airtable, Sheets, Telegram, and WhatsApp
+  const [testingService, setTestingService] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<{ [key: string]: { success: boolean; message: string } }>({});
+
+  const handleTestConnection = async (service: "whatsapp" | "telegram" | "sheets" | "airtable") => {
+    setTestingService(service);
+    // Clear previous result for this service
+    setTestResults(prev => {
+      const copy = { ...prev };
+      delete copy[service];
+      return copy;
+    });
+
+    try {
+      const activePass = password || localStorage.getItem("admin_session_auth") || "";
+      const configPayload: any = {};
+      if (service === "whatsapp") {
+        configPayload.phone = whatsAppPhone;
+        configPayload.apikey = whatsAppApiKey;
+      } else if (service === "telegram") {
+        configPayload.telegramBotToken = telegramBotToken;
+        configPayload.telegramChatId = telegramChatId;
+      } else if (service === "sheets") {
+        configPayload.sheetsUrl = sheetsUrl;
+      } else if (service === "airtable") {
+        configPayload.airtableApiKey = airtableApiKey;
+        configPayload.airtableBaseId = airtableBaseId;
+        configPayload.airtableTableName = airtableTableName;
+      }
+
+      const res = await fetch("/api/test-integration", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-password": activePass
+        },
+        body: JSON.stringify({
+          service,
+          config: configPayload
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setTestResults(prev => ({
+          ...prev,
+          [service]: { success: true, message: data.message || "Conexão estabelecida com sucesso!" }
+        }));
+      } else {
+        setTestResults(prev => ({
+          ...prev,
+          [service]: { success: false, message: data.error || "Falha na conexão de teste." }
+        }));
+      }
+    } catch (err: any) {
+      setTestResults(prev => ({
+        ...prev,
+        [service]: { success: false, message: `Erro ao comunicar com o servidor: ${err.message}` }
+      }));
+    } finally {
+      setTestingService(null);
+    }
+  };
+
+  const fetchWhatsAppConfig = async (authPass?: string) => {
+    try {
+      const activePass = authPass || password || localStorage.getItem("admin_session_auth") || "";
+      const res = await fetch("/api/whatsapp-config", {
+        headers: { "x-admin-password": activePass }
+      });
+      if (res.ok) {
+        const config = await res.json();
+        setWhatsAppEnabled(config.enabled);
+        setWhatsAppPhone(config.phone);
+        setWhatsAppApiKey(config.apikey);
+        setTelegramEnabled(!!config.telegramEnabled);
+        setTelegramBotToken(config.telegramBotToken || "");
+        setTelegramChatId(config.telegramChatId || "");
+        setSheetsEnabled(!!config.sheetsEnabled);
+        setSheetsUrl(config.sheetsUrl || "");
+        setAirtableEnabled(!!config.airtableEnabled);
+        setAirtableApiKey(config.airtableApiKey || "");
+        setAirtableBaseId(config.airtableBaseId || "");
+        setAirtableTableName(config.airtableTableName || "Denuncias");
+      }
+    } catch (err) {
+      console.error("Erro ao carregar configurações de alertas:", err);
+    }
+  };
+
+  const handleSaveWhatsAppConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingWhatsApp(true);
+    try {
+      const authHeaders: any = {
+        "Content-Type": "application/json",
+        "x-admin-password": password || localStorage.getItem("admin_session_auth") || ""
+      };
+
+      const res = await fetch("/api/whatsapp-config", {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({
+          enabled: whatsAppEnabled,
+          phone: whatsAppPhone,
+          apikey: whatsAppApiKey,
+          telegramEnabled,
+          telegramBotToken,
+          telegramChatId,
+          sheetsEnabled,
+          sheetsUrl,
+          airtableEnabled,
+          airtableApiKey,
+          airtableBaseId,
+          airtableTableName
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error("Falha ao salvar as configurações.");
+      }
+
+      showActionStatus("Definições de Notificação atualizadas com sucesso!");
+    } catch (err: any) {
+      showActionStatus(err.message || "Erro ao salvar as configurações.", "error");
+    } finally {
+      setIsSavingWhatsApp(false);
+    }
+  };
+
   const fetchReports = async () => {
     setIsLoading(true);
     setErrorMsg("");
     try {
+      const activePass = password || localStorage.getItem("admin_session_auth") || "";
       const response = await fetch("/api/reports", {
         headers: {
-          "x-admin-password": password || localStorage.getItem("admin_session_auth") || ""
+          "x-admin-password": activePass
         }
       });
 
@@ -36,6 +182,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
       if (password) {
         localStorage.setItem("admin_session_auth", password);
       }
+      // Fetch WhatsApp configurations on login
+      fetchWhatsAppConfig(activePass);
     } catch (err: any) {
       setErrorMsg(err.message || "Erro de ligação com o servidor.");
       localStorage.removeItem("admin_session_auth");
@@ -61,6 +209,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
         .then((data) => {
           setReports(data);
           setIsAuthenticated(true);
+          fetchWhatsAppConfig(cachedPass);
         })
         .catch(() => {
           localStorage.removeItem("admin_session_auth");
@@ -70,6 +219,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
         });
     }
   }, []);
+
+  const playNotificationSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const playTone = (freq: number, start: number, duration: number) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.25, start);
+        gain.gain.exponentialRampToValueAtTime(0.01, start + duration - 0.05);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+      // Emite um belo alerta sonoro duplo (Bip Bip! 🚨)
+      playTone(1000, audioCtx.currentTime, 0.12);
+      playTone(1000, audioCtx.currentTime + 0.15, 0.12);
+    } catch (err) {
+      console.warn("Navegador bloqueou áudio ou erro de AudioContext:", err);
+    }
+  };
+
+  // Polling automático no painel a cada 10 segundos com som de alerta dinâmico
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const cachedPass = password || localStorage.getItem("admin_session_auth") || "";
+        if (!cachedPass) return;
+
+        const response = await fetch("/api/reports", {
+          headers: {
+            "x-admin-password": cachedPass
+          }
+        });
+
+        if (response.ok) {
+          const freshReports = await response.json();
+          if (reports.length > 0 && freshReports.length > reports.length) {
+            playNotificationSound();
+            showActionStatus("🚨 Alerta em Tempo Real: Nova denúncia recebida!", "success");
+            setReports(freshReports);
+            if (onRefreshStats) {
+              onRefreshStats();
+            }
+          } else if (JSON.stringify(freshReports) !== JSON.stringify(reports)) {
+            setReports(freshReports);
+          }
+        }
+      } catch (err) {
+        console.error("Erro silencioso ao atualizar denúncias:", err);
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, reports, password]);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -210,7 +418,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
           </form>
 
           <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-center text-[10px] text-slate-450 font-semibold leading-relaxed">
-            Se for o proprietário, a palavra-passe por defeito é <strong className="text-slate-700">admin</strong>.
+            Painel de acesso restrito a administradores autorizados.
           </div>
         </div>
       </div>
@@ -394,6 +602,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
                     </div>
 
                     <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                      <a
+                        href={`https://api.whatsapp.com/send?phone=${encodeURIComponent(whatsAppPhone.replace(/[^0-9]/g, ""))}&text=${encodeURIComponent(
+                          `🚨 *Denúncia (Apoio MZ) - [${r.user_code}]* 🚨\n\n*Tipo:* ${r.tipo}\n*Local:* ${r.local}\n*Quando:* ${r.quando}\n*Testemunhas:* ${r.testemunhas}\n\n*Descrição:*\n${r.descricao}\n\n_Mensagem encaminhada do painel administrativo._`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 px-2 bg-emerald-55 hover:bg-emerald-600 border border-emerald-200 hover:border-emerald-600 text-emerald-800 hover:text-white rounded-lg cursor-pointer transition-all flex items-center gap-1 font-bold text-[9px] no-underline"
+                        title="Enviar/Fazer cópia manual para o WhatsApp do Administrador"
+                      >
+                        <span className="text-xs">💬</span> Enviar WhatsApp
+                      </a>
                       <select
                         value={r.status}
                         onChange={(e) => handleUpdateStatus(r.id, e.target.value as any)}
@@ -422,7 +641,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
         <div className="lg:col-span-4 space-y-5">
           <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
             <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-              <BarChart3 className="w-4.5 h-4.5 text-slate-700" /> Distribuição de Casos
+              <BarChart3 className="w-4.5 h-4.5 text-slate-705" /> Distribuição de Casos
             </h3>
             <div className="space-y-4 font-medium text-xs">
               {Object.keys(typeDistribution).length === 0 ? (
@@ -447,6 +666,122 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
                 })
               )}
             </div>
+          </div>
+
+          {/* Sincronização Google Sheets (Painel de Integração Ativa) */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+            <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <span className="text-base font-bold">📊</span> Sincronização Ativa de Dados
+            </h4>
+            
+            <form onSubmit={handleSaveWhatsAppConfig} className="space-y-4 text-xs font-semibold text-slate-755">
+              
+              {/* Secção Google Sheets */}
+              <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-800">Ativar Integração Google Sheets</span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      checked={sheetsEnabled}
+                      onChange={(e) => setSheetsEnabled(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
+                {sheetsEnabled && (
+                  <div className="space-y-3 pt-1">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-slate-500 font-extrabold uppercase block select-none">URL da Web App (Google Apps Script)</label>
+                      <input 
+                        type="url" 
+                        value={sheetsUrl}
+                        onChange={(e) => setSheetsUrl(e.target.value)}
+                        placeholder="Ex: https://script.google.com/macros/s/.../exec"
+                        className="w-full bg-slate-50 border border-slate-205 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-red-500 transition-colors font-medium"
+                      />
+                    </div>
+
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleTestConnection("sheets")}
+                        disabled={testingService === "sheets"}
+                        className="w-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold py-1.5 px-3 rounded-lg text-[10px] uppercase transition-colors cursor-pointer select-none border-none text-center"
+                      >
+                        {testingService === "sheets" ? "🔄 A testar..." : "⚡ Testar Conexão Google Sheets"}
+                      </button>
+                    </div>
+
+                    {testResults["sheets"] && (
+                      <div className={`p-2 rounded-lg text-[10px] leading-snug font-semibold border ${
+                        testResults["sheets"].success 
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-150" 
+                          : "bg-rose-50 text-rose-850 border-rose-150"
+                      }`}>
+                        {testResults["sheets"].success ? "✅ " : "❌ "}
+                        {testResults["sheets"].message}
+                      </div>
+                    )}
+
+                    <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg leading-relaxed text-[9px] text-slate-450 font-medium space-y-1.5">
+                      <div>
+                        ⚡ <strong>Instruções de Configuração Rápida (100% Grátis & Sem Expiração):</strong>
+                      </div>
+                      <ol className="list-decimal pl-3 space-y-1">
+                        <li>Crie uma folha de cálculo vazia no seu <a href="https://sheets.new" target="_blank" rel="noopener noreferrer" className="font-bold underline text-indigo-650">Google Sheets ↗</a>.</li>
+                        <li>No menu superior, vá a <strong>Extensões</strong> &rarr; <strong>Apps Script</strong>.</li>
+                        <li>Apague todo o código existente e cole este código exato:</li>
+                      </ol>
+                      
+                      <pre className="bg-slate-100 p-2 rounded text-[8px] font-mono leading-tight block select-all overflow-x-auto max-h-28 py-1.5 text-slate-600 border border-slate-200">
+{`function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(["ID de Denúncia", "Código do Utente", "Tipo de Incidente", "Localização", "Quando Ocorreu", "Testemunhas", "Descrição Detalhada", "Data de Registo", "Status Atual"]);
+    }
+    sheet.appendRow([
+      data.id || "",
+      data.user_code || "",
+      data.tipo || "",
+      data.local || "",
+      data.quando || "",
+      data.testemunhas || "",
+      data.descricao || "",
+      data.created_at ? new Date(data.created_at).toLocaleString("pt-MZ", {timeZone: "Africa/Maputo"}) : "",
+      data.status || "Recebido"
+    ]);
+    return ContentService.createTextOutput(JSON.stringify({success:true})).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({success:false,error:err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}`}
+                      </pre>
+
+                      <ol className="list-decimal pl-3 space-y-1" start={4}>
+                        <li>Clique no botão azul <strong>Implementar</strong> (Deploy) &rarr; <strong>Nova implementação</strong>.</li>
+                        <li>No ícone da roda dentada, selecione <strong>Aplicação Web</strong> (Web App).</li>
+                        <li>Defina: Executar como: <strong>Eu</strong> (A sua conta), Quem tem acesso: <strong>Qualquer pessoa</strong>.</li>
+                        <li>Clique em Implementar, conceda as permissões de acesso ao seu próprio documento e <strong>copie o URL gerado</strong> para colar no campo acima.</li>
+                      </ol>
+                      <p className="font-bold text-center text-emerald-700 bg-emerald-50/50 p-1.5 rounded border border-emerald-100/60 mt-1">Pronto! Toda nova denúncia será registada de forma confidencial em ambos os lugares no mesmo milissegundo! 🚀</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSavingWhatsApp}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-4 rounded-xl border-none shadow-md hover:scale-[1.01] transition-all cursor-pointer text-xs flex items-center justify-center animate-none"
+              >
+                {isSavingWhatsApp ? "A gravar..." : "💾 Guardar Parâmetros de Integração"}
+              </button>
+            </form>
           </div>
 
           <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 p-5 rounded-2xl text-indigo-50 leading-relaxed space-y-3 shadow-md border-none">

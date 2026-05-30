@@ -17,7 +17,10 @@ import {
   CheckCircle2,
   Clock,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Smartphone,
+  Download,
+  Share2
 } from "lucide-react";
 
 import { ReportingForm } from "./components/ReportingForm";
@@ -25,6 +28,7 @@ import { AIChat } from "./components/AIChat";
 import { NewsSection } from "./components/NewsSection";
 import { ContactSection } from "./components/ContactSection";
 import { AdminDashboard } from "./components/AdminDashboard";
+import { AndroidSection } from "./components/AndroidSection";
 import type { Report } from "./types";
 
 // Generate or retrieve anonymous user code
@@ -47,6 +51,31 @@ const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sosModalOpen, setSosModalOpen] = useState(false);
   const [denunciaSubTab, setDenunciaSubTab] = useState<"fazer" | "ver">("fazer");
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleBeforePrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    const handleInstalled = () => {
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforePrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+
+    if (window.matchMedia("(display-mode: standalone)").matches || window.location.search.includes("pwa=true")) {
+      setIsInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforePrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
 
   // Stats from backend JSON
   const [stats, setStats] = useState({
@@ -246,13 +275,21 @@ const App: React.FC = () => {
           >
             📞 Contactos
           </button>
+          <button
+            onClick={() => setCurrentTab("android")}
+            className={`py-2 px-3.5 rounded-xl text-xs font-bold tracking-wide transition-all border-none flex items-center gap-1.5 ${
+              currentTab === "android" ? "bg-indigo-50 text-indigo-800" : "text-slate-650 hover:bg-slate-50"
+            }`}
+          >
+            📱 App Android
+          </button>
         </div>
 
         {/* SOS Panel Emergency Button */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSosModalOpen(true)}
-            className="bg-red-650 text-white font-extrabold text-[11px] py-2 px-4 rounded-xl shadow-lg shadow-red-200 border-none uppercase tracking-wider hover:bg-red-700 active:scale-95 hover:shadow-xl transition-all select-none animate-pulse shrink-0 cursor-pointer"
+            className="bg-red-600 text-white font-extrabold text-[11px] py-2 px-4 rounded-xl shadow-lg shadow-red-200 border-none uppercase tracking-wider hover:bg-black active:bg-black active:scale-95 hover:shadow-xl transition-all select-none animate-pulse shrink-0 cursor-pointer"
           >
             🆘 SOS Emergência
           </button>
@@ -317,6 +354,15 @@ const App: React.FC = () => {
           >
             📞 Contactos Oficiais
           </button>
+          <button
+            onClick={() => {
+              setCurrentTab("android");
+              setMobileMenuOpen(false);
+            }}
+            className="w-full text-left py-2.5 px-3 rounded-lg text-slate-700 hover:bg-slate-50 text-xs border-none font-bold"
+          >
+            📱 Aplicativo Android
+          </button>
         </div>
       )}
 
@@ -341,7 +387,7 @@ const App: React.FC = () => {
               <div className="pt-2 flex flex-wrap justify-center gap-3">
                 <button
                   onClick={() => setCurrentTab("denuncia")}
-                  className="bg-red-650 hover:bg-red-700 text-white font-extrabold py-3.5 px-6 rounded-xl text-xs border-none shadow-md shadow-red-200 hover:shadow-lg transition-transform hover:scale-[1.02] cursor-pointer"
+                  className="bg-red-600 hover:bg-black text-white font-extrabold py-3.5 px-6 rounded-xl text-xs border-none shadow-md shadow-red-200 hover:shadow-lg hover:shadow-black active:bg-black transition-all hover:scale-[1.02] cursor-pointer"
                 >
                   🚨 Fazer Denúncia Anónima
                 </button>
@@ -590,6 +636,15 @@ const App: React.FC = () => {
         {/* ==================== SCREEN: CONTACT / HOTLINES ==================== */}
         {currentTab === "contactos" && <ContactSection />}
 
+        {/* ==================== SCREEN: APPS / ANDROID ==================== */}
+        {currentTab === "android" && (
+          <AndroidSection
+            deferredPrompt={deferredPrompt}
+            isInstalled={isInstalled}
+            onNavigateToTab={(tabName) => setCurrentTab(tabName)}
+          />
+        )}
+
         {/* ==================== SCREEN: ADMIN PANEL ==================== */}
         {currentTab === "admin" && (
           <AdminDashboard
@@ -641,7 +696,7 @@ const App: React.FC = () => {
             <div className="space-y-2 font-black">
               <a
                 href="tel:112"
-                className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-extrabold py-3 rounded-xl border-none shadow-sm transition-colors text-center"
+                className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-black active:bg-black text-white font-extrabold py-3 rounded-xl border-none shadow-sm transition-all text-center"
               >
                 📞 Ligar Polícia: 112
               </a>

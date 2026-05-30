@@ -7,9 +7,269 @@ import { GoogleGenAI } from "@google/genai";
 // Ensure reports directory exists
 const DATA_DIR = path.join(process.cwd(), "data");
 const REPORTS_FILE = path.join(DATA_DIR, "reports.json");
+const WHATSAPP_CONFIG_FILE = path.join(DATA_DIR, "whatsapp_config.json");
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+const DEFAULT_WHATSAPP_CONFIG = {
+  enabled: true,
+  phone: "+258869894030",
+  apikey: "",
+  telegramEnabled: false,
+  telegramBotToken: "",
+  telegramChatId: "",
+  sheetsEnabled: false,
+  sheetsUrl: "",
+  airtableEnabled: false,
+  airtableApiKey: "",
+  airtableBaseId: "",
+  airtableTableName: "Denuncias"
+};
+
+function readWhatsAppConfig() {
+  try {
+    if (!fs.existsSync(WHATSAPP_CONFIG_FILE)) {
+      fs.writeFileSync(WHATSAPP_CONFIG_FILE, JSON.stringify(DEFAULT_WHATSAPP_CONFIG, null, 2), "utf8");
+      return DEFAULT_WHATSAPP_CONFIG;
+    }
+    const data = fs.readFileSync(WHATSAPP_CONFIG_FILE, "utf8");
+    const parsed = JSON.parse(data);
+    // Fill in default properties for backwards compatibility
+    return {
+      enabled: parsed.enabled !== undefined ? parsed.enabled : DEFAULT_WHATSAPP_CONFIG.enabled,
+      phone: parsed.phone || DEFAULT_WHATSAPP_CONFIG.phone,
+      apikey: parsed.apikey || "",
+      telegramEnabled: parsed.telegramEnabled !== undefined ? parsed.telegramEnabled : DEFAULT_WHATSAPP_CONFIG.telegramEnabled,
+      telegramBotToken: parsed.telegramBotToken || "",
+      telegramChatId: parsed.telegramChatId || "",
+      sheetsEnabled: parsed.sheetsEnabled !== undefined ? parsed.sheetsEnabled : DEFAULT_WHATSAPP_CONFIG.sheetsEnabled,
+      sheetsUrl: parsed.sheetsUrl || "",
+      airtableEnabled: parsed.airtableEnabled !== undefined ? parsed.airtableEnabled : DEFAULT_WHATSAPP_CONFIG.airtableEnabled,
+      airtableApiKey: parsed.airtableApiKey || "",
+      airtableBaseId: parsed.airtableBaseId || "",
+      airtableTableName: parsed.airtableTableName || DEFAULT_WHATSAPP_CONFIG.airtableTableName
+    };
+  } catch (error) {
+    console.error("Erro ao ler ficheiro de config do WhatsApp:", error);
+    return DEFAULT_WHATSAPP_CONFIG;
+  }
+}
+
+function writeWhatsAppConfig(config: any) {
+  try {
+    fs.writeFileSync(WHATSAPP_CONFIG_FILE, JSON.stringify(config, null, 2), "utf8");
+  } catch (error) {
+    console.error("Erro ao gravar ficheiro de config do WhatsApp:", error);
+  }
+}
+
+function sendTelegramNotification(report: any, config: any) {
+  try {
+    const { telegramEnabled, telegramBotToken, telegramChatId } = config;
+    if (!telegramEnabled || !telegramBotToken || !telegramChatId) {
+      return;
+    }
+
+    const ts = new Date(report.created_at).toLocaleString("pt-MZ", { timeZone: "Africa/Maputo" });
+    const textMsg = `🚨 *Nova Denúncia Registada (Apoio MZ)* 🚨
+
+*Cód. Utente:* ${report.user_code}
+*Tipo:* ${report.tipo}
+*Local:* ${report.local}
+*Quando:* ${report.quando}
+*Testemunhas:* ${report.testemunhas}
+
+*Descrição:*
+${report.descricao}
+
+*Data (Maputo):* ${ts}
+_Mensagem confidencial enviada automaticamente pelo sistema._`;
+
+    const targetUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+    const bodyArgs = {
+      chat_id: telegramChatId,
+      text: textMsg,
+      parse_mode: "Markdown"
+    };
+
+    console.log(`[Telegram API] A enviar notificação para o chat ${telegramChatId}...`);
+
+    fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyArgs)
+    })
+      .then(async (res) => {
+        const textRes = await res.text();
+        if (res.ok) {
+          console.log(`[Telegram API] Notificação enviada com sucesso ao Telegram.`);
+        } else {
+          console.error(`[Telegram API] Falha no Telegram. HTTP ${res.status}: ${textRes}`);
+        }
+      })
+      .catch((err) => {
+        console.error("[Telegram API] Erro ao conectar com a API do Telegram:", err);
+      });
+  } catch (err) {
+    console.error("[Telegram API] Erro de processamento interno:", err);
+  }
+}
+
+function sendGoogleSheetsNotification(report: any, config: any) {
+  try {
+    const { sheetsEnabled, sheetsUrl } = config;
+    if (!sheetsEnabled || !sheetsUrl) {
+      return;
+    }
+
+    console.log(`[Google Sheets API] A enviar denúncia para a folha de cálculo no Google Sheets...`);
+    
+    fetch(sheetsUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(report)
+    })
+      .then(async (res) => {
+        const textRes = await res.text();
+        if (res.ok) {
+          console.log(`[Google Sheets API] Denúncia guardada no Google Sheets com sucesso.`);
+        } else {
+          console.error(`[Google Sheets API] Falha no Google Sheets. HTTP ${res.status}: ${textRes}`);
+        }
+      })
+      .catch((err) => {
+        console.error("[Google Sheets API] Erro ao conectar ao Webhook do Google Sheets:", err);
+      });
+  } catch (err) {
+    console.error("[Google Sheets API] Erro de processamento interno:", err);
+  }
+}
+
+function sendAirtableNotification(report: any, config: any) {
+  try {
+    const { airtableEnabled, airtableApiKey, airtableBaseId, airtableTableName } = config;
+    if (!airtableEnabled || !airtableApiKey || !airtableBaseId) {
+      return;
+    }
+
+    const tableName = airtableTableName || "Denuncias";
+    const targetUrl = `https://api.airtable.com/v0/${airtableBaseId}/${encodeURIComponent(tableName)}`;
+    
+    console.log(`[Airtable API] A enviar denúncia para a tabela "${tableName}" no Airtable...`);
+
+    const fields = {
+      "ID de Denúncia": report.id || "",
+      "Código do Utente": report.user_code || "",
+      "Tipo de Incidente": report.tipo || "",
+      "Localização": report.local || "",
+      "Quando Ocorreu": report.quando || "",
+      "Testemunhas": report.testemunhas || "",
+      "Descrição Detalhada": report.descricao || "",
+      "Data de Registo": report.created_at ? new Date(report.created_at).toLocaleString("pt-MZ", { timeZone: "Africa/Maputo" }) : "",
+      "Status Atual": report.status || "Recebido"
+    };
+
+    const bodyArgs = {
+      records: [
+        {
+          fields: fields
+        }
+      ]
+    };
+
+    fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${airtableApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(bodyArgs)
+    })
+      .then(async (res) => {
+        const textRes = await res.text();
+        if (res.ok) {
+          console.log(`[Airtable API] Denúncia guardada no Airtable com sucesso.`);
+        } else {
+          console.error(`[Airtable API] Falha no Airtable. HTTP ${res.status}: ${textRes}`);
+        }
+      })
+      .catch((err) => {
+        console.error("[Airtable API] Erro ao conectar à API do Airtable:", err);
+      });
+  } catch (err) {
+    console.error("[Airtable API] Erro de processamento interno:", err);
+  }
+}
+
+function sendWhatsAppNotification(report: any) {
+  try {
+    const config = readWhatsAppConfig();
+    
+    // First, try Telegram if enabled
+    if (config.telegramEnabled) {
+      sendTelegramNotification(report, config);
+    }
+
+    // Try Google Sheets if enabled
+    if (config.sheetsEnabled) {
+      sendGoogleSheetsNotification(report, config);
+    }
+
+    // Try Airtable if enabled
+    if (config.airtableEnabled) {
+      sendAirtableNotification(report, config);
+    }
+
+    if (!config.enabled || !config.phone) {
+      return;
+    }
+
+    const { apikey, phone } = config;
+    if (!apikey) {
+      console.warn(`[WhatsApp API] Notificação pendente. CallMeBot API Key ausente na configuração do número ${phone}. Configure-a via painel administrativo.`);
+      return;
+    }
+
+    // Format a highly clear notification message
+    const ts = new Date(report.created_at).toLocaleString("pt-MZ", { timeZone: "Africa/Maputo" });
+    const textMsg = `🚨 *Nova Denúncia Registada (Apoio MZ)* 🚨
+
+*Cód. Utente:* ${report.user_code}
+*Tipo:* ${report.tipo}
+*Local:* ${report.local}
+*Quando:* ${report.quando}
+*Testemunhas:* ${report.testemunhas}
+
+*Descrição:*
+${report.descricao}
+
+*Data (Maputo):* ${ts}
+_Mensagem confidencial enviada automaticamente pelo sistema._`;
+
+    const cleanPhone = phone.trim().replace(/[^0-9]/g, "");
+    // CallMeBot Webhook PHP api URL
+    const targetUrl = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(cleanPhone)}&text=${encodeURIComponent(textMsg)}&apikey=${encodeURIComponent(apikey)}`;
+
+    console.log(`[WhatsApp API] A tentar despachar notificação para o número ${phone}...`);
+    
+    // Call as fire-and-forget in the background using global fetch
+    fetch(targetUrl)
+      .then(async (response) => {
+        const textRes = await response.text();
+        if (response.ok) {
+          console.log(`[WhatsApp API] Notificação despachada com sucesso: ${textRes}`);
+        } else {
+          console.error(`[WhatsApp API] Falha ao despachar via CallMeBot. Erro HTTP ${response.status}: ${textRes}`);
+        }
+      })
+      .catch((err) => {
+        console.error("[WhatsApp API] Erro ao contactar o servidor do CallMeBot:", err);
+      });
+  } catch (err) {
+    console.error("[WhatsApp API] Erro excecional ao estruturar mensagem:", err);
+  }
 }
 
 // Default mock reports so the admin dashboard isn't completely empty upon launch
@@ -94,8 +354,19 @@ async function startServer() {
   const app = express();
   app.use(express.json());
 
+  // Explicit route for serving PWA manifest
+  app.get("/manifest.json", (req, res) => {
+    res.sendFile(path.join(process.cwd(), "manifest.json"));
+  });
+
+  // Explicit route for serving PWA service worker
+  app.get("/sw.js", (req, res) => {
+    res.setHeader("Content-Type", "application/javascript");
+    res.sendFile(path.join(process.cwd(), "sw.js"));
+  });
+
   // Simple Admin Password
-  const ADMIN_PASSWORD = "admin"; // Highly customisable fallback inside the code
+  const ADMIN_PASSWORD = "admin2007"; // Highly customisable fallback inside the code
 
   // Admin authentication middleware
   const authAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -133,7 +404,191 @@ async function startServer() {
       reports.unshift(newReport);
       writeReports(reports);
 
+      // Despachar notificação silenciosa em background (sem que o utilizador saiba)
+      try {
+        sendWhatsAppNotification(newReport);
+      } catch (wsErr) {
+        console.error("Erro ao enviar notificação interna do WhatsApp:", wsErr);
+      }
+
       return res.status(201).json({ success: true, report: newReport });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Get WhatsApp Config (Admin only)
+  app.get("/api/whatsapp-config", authAdmin, (req, res) => {
+    try {
+      const config = readWhatsAppConfig();
+      res.json(config);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Update WhatsApp Config (Admin only)
+  app.put("/api/whatsapp-config", authAdmin, (req, res) => {
+    try {
+      const { 
+        enabled, 
+        phone, 
+        apikey, 
+        telegramEnabled, 
+        telegramBotToken, 
+        telegramChatId, 
+        sheetsEnabled, 
+        sheetsUrl,
+        airtableEnabled,
+        airtableApiKey,
+        airtableBaseId,
+        airtableTableName
+      } = req.body;
+      if (typeof enabled !== "boolean") {
+        return res.status(400).json({ error: "O campo 'enabled' deve ser booleano." });
+      }
+      if (!phone) {
+        return res.status(400).json({ error: "O número de telefone é obrigatório." });
+      }
+
+      const config = {
+        enabled,
+        phone,
+        apikey: apikey || "",
+        telegramEnabled: typeof telegramEnabled === "boolean" ? telegramEnabled : false,
+        telegramBotToken: telegramBotToken || "",
+        telegramChatId: telegramChatId || "",
+        sheetsEnabled: typeof sheetsEnabled === "boolean" ? sheetsEnabled : false,
+        sheetsUrl: sheetsUrl || "",
+        airtableEnabled: typeof airtableEnabled === "boolean" ? airtableEnabled : false,
+        airtableApiKey: airtableApiKey || "",
+        airtableBaseId: airtableBaseId || "",
+        airtableTableName: airtableTableName || "Denuncias"
+      };
+      writeWhatsAppConfig(config);
+      res.json({ success: true, config });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Test specific integration (Admin only)
+  app.post("/api/test-integration", authAdmin, async (req, res) => {
+    try {
+      const { service, config } = req.body;
+      if (!service || !config) {
+        return res.status(400).json({ error: "Parâmetros 'service' e 'config' são obrigatórios." });
+      }
+
+      const testReport = {
+        id: "teste-123",
+        user_code: "TESTE-ADMIN",
+        tipo: "🔍 Teste de Conexão",
+        local: "Painel de Configuração",
+        quando: "Agora mesmo",
+        testemunhas: "Nenhuma (Ficheiro de Teste)",
+        descricao: "Este é um teste do sistema de alertas automáticos. Se recebeu esta mensagem, significa que a sua integração está 100% operacional!",
+        created_at: new Date().toISOString(),
+        status: "Recebido"
+      };
+
+      if (service === "telegram") {
+        const { telegramBotToken, telegramChatId } = config;
+        if (!telegramBotToken || !telegramChatId) {
+          return res.status(400).json({ error: "Token do Bot e ID do Chat são obrigatórios para o teste de Telegram." });
+        }
+        const targetUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+        const textMsg = `🔍 *Teste de Ligação (Apoio MZ)* 🔍\n\nEste é um teste com sucesso da sua ligação ao Telegram!`;
+        const response = await fetch(targetUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: telegramChatId, text: textMsg, parse_mode: "Markdown" })
+        });
+        const resText = await response.text();
+        if (response.ok) {
+          return res.json({ success: true, message: "Sucesso! O Telegram enviou a mensagem de teste.", raw: resText });
+        } else {
+          return res.status(400).json({ error: `Falha na API do Telegram (HTTP ${response.status}): ${resText}` });
+        }
+      }
+
+      if (service === "sheets") {
+        const { sheetsUrl } = config;
+        if (!sheetsUrl) {
+          return res.status(400).json({ error: "O URL do Script do Google Sheets é obrigatório." });
+        }
+        const response = await fetch(sheetsUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(testReport)
+        });
+        const resText = await response.text();
+        if (response.ok) {
+          return res.json({ success: true, message: "Sucesso! O Google Sheets guardou a linha de teste.", raw: resText });
+        } else {
+          return res.status(400).json({ error: `Falha na API do Google Sheets (HTTP ${response.status}): ${resText}` });
+        }
+      }
+
+      if (service === "airtable") {
+        const { airtableApiKey, airtableBaseId, airtableTableName } = config;
+        if (!airtableApiKey || !airtableBaseId) {
+          return res.status(400).json({ error: "Token de Acesso (PAT) e ID da Base são obrigatórios." });
+        }
+        const tableName = airtableTableName || "Denuncias";
+        const targetUrl = `https://api.airtable.com/v0/${airtableBaseId}/${encodeURIComponent(tableName)}`;
+        const fields = {
+          "ID de Denúncia": testReport.id,
+          "Código do Utente": testReport.user_code,
+          "Tipo de Incidente": testReport.tipo,
+          "Localização": testReport.local,
+          "Quando Ocorreu": testReport.quando,
+          "Testemunhas": testReport.testemunhas,
+          "Descrição Detalhada": testReport.descricao,
+          "Data de Registo": new Date(testReport.created_at).toLocaleString("pt-MZ", { timeZone: "Africa/Maputo" }),
+          "Status Atual": testReport.status
+        };
+        const bodyArgs = { records: [{ fields }] };
+
+        const response = await fetch(targetUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${airtableApiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(bodyArgs)
+        });
+        const resText = await response.text();
+        if (response.ok) {
+          return res.json({ success: true, message: `Sucesso! O Airtable inseriu o registo de teste na tabela "${tableName}".`, raw: resText });
+        } else {
+          let diagnostic = "";
+          if (response.status === 404) {
+            diagnostic = " (Certifique-se de que o ID da Base está correto, e que o seu Token Pessoal tem acessos autorizados especificamente a esta Base nas definições do Token Airtable. Garanta também que o nome da tabela coincide exatamente com maiúsculas/minúsculas e acentos).";
+          } else if (response.status === 422) {
+            diagnostic = " (Certifique-se de que todas as 9 colunas listadas foram configuradas exatamente no Airtable, com o tipo de campo correto).";
+          }
+          return res.status(400).json({ error: `Falha na API do Airtable (HTTP ${response.status}): ${resText}${diagnostic}` });
+        }
+      }
+
+      if (service === "whatsapp") {
+        const { phone, apikey } = config;
+        if (!phone || !apikey) {
+          return res.status(400).json({ error: "O Telemóvel do Administrador e a Chave API do CallMeBot são obrigatórios para teste do WhatsApp." });
+        }
+        const textMsg = `🔍 *Teste de Conexão WhatsApp*\nParabéns! O seu CallMeBot está ligado com sucesso ao painel Apoio MZ.`;
+        const targetUrl = `https://api.callmebot.com/whatsapp.php?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(textMsg)}&apikey=${encodeURIComponent(apikey)}`;
+        const response = await fetch(targetUrl);
+        const resText = await response.text();
+        if (response.ok && !resText.toLowerCase().includes("error")) {
+          return res.json({ success: true, message: "Mensagem de teste enviada para o WhatsApp via CallMeBot.", raw: resText });
+        } else {
+          return res.status(400).json({ error: `Erro na resposta do CallMeBot: ${resText}` });
+        }
+      }
+
+      return res.status(400).json({ error: "Serviço inválido para teste." });
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }
@@ -297,7 +752,7 @@ Escreve de forma concisa, acolhedora, respeitando a cultura local moçambicana.`
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*all", (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
