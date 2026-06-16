@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Catch-all Default Deny Gate
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+    
+    function existing() {
+      return resource.data;
+    }
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Helper to validate a Report payload and prevent value poisoning
+    function isValidReport(data) {
+      return data.keys().hasAll(['id', 'tipo', 'descricao', 'status', 'created_at', 'user_code']) &&
+             data.keys().size() <= 20 &&
+             data.id is string && data.id.size() <= 64 &&
+             data.tipo is string && data.tipo.size() <= 128 &&
+             data.descricao is string && data.descricao.size() <= 10000 &&
+             data.status in ['Recebido', 'Em Investigação', 'Resolvido'] &&
+             data.created_at is string && data.created_at.size() <= 64 &&
+             data.user_code is string && data.user_code.size() <= 32 &&
+             (!data.keys().contains('nome_denunciante') || (data.nome_denunciante is string && data.nome_denunciante.size() <= 256)) &&
+             (!data.keys().contains('local') || (data.local is string && data.local.size() <= 1024)) &&
+             (!data.keys().contains('quando') || (data.quando is string && data.quando.size() <= 256)) &&
+             (!data.keys().contains('testemunhas') || (data.testemunhas is string && data.testemunhas.size() <= 1024)) &&
+             (!data.keys().contains('latitude') || (data.latitude is float || data.latitude is int)) &&
+             (!data.keys().contains('longitude') || (data.longitude is float || data.longitude is int)) &&
+             (!data.keys().contains('precisao') || (data.precisao is float || data.precisao is int)) &&
+             (!data.keys().contains('endereco_completo') || (data.endereco_completo is string && data.endereco_completo.size() <= 4000)) &&
+             (!data.keys().contains('google_maps_link') || (data.google_maps_link is string && data.google_maps_link.size() <= 512)) &&
+             (!data.keys().contains('data_local') || (data.data_local is string && data.data_local.size() <= 64)) &&
+             (!data.keys().contains('hora_local') || (data.hora_local is string && data.hora_local.size() <= 64));
+    }
+
+    // Hardened path rule for Reports
+    match /reports/{reportId} {
+      allow create: if isValidId(reportId) && isValidReport(incoming());
+      
+      // Strict Admin Access Block over direct reading, updating, and deleting
+      allow read, delete: if isAdmin();
+      
+      // Action-based partial updates that only allow status state updates
+      allow update: if isAdmin() && isValidReport(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['status'])
+      );
+    }
+
+    // Collection to manage admin authorized userIDs
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false; // System provisioned only
+    }
+  }
+}

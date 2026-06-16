@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Lock, Unlock, ShieldAlert, BarChart3, Search, Calendar, MapPin, Eye, Check, AlertCircle, Trash2, RefreshCw, Layers } from "lucide-react";
+import { Lock, Unlock, ShieldAlert, BarChart3, Search, Calendar, MapPin, Eye, Check, AlertCircle, Trash2, RefreshCw, Layers, Globe } from "lucide-react";
 import type { Report } from "../types";
 
 interface AdminDashboardProps {
@@ -23,8 +23,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
   const [telegramEnabled, setTelegramEnabled] = useState(false);
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
-  const [sheetsEnabled, setSheetsEnabled] = useState(false);
-  const [sheetsUrl, setSheetsUrl] = useState("");
+  const [sheetsEnabled, setSheetsEnabled] = useState(true);
+  const [sheetsUrl, setSheetsUrl] = useState("https://script.google.com/macros/s/AKfycbyTU4WSJDkZuw61z1aKTTgVs0Y7gIwjK5puNgldil7euSN76e-4wVsIjZvJ_8zg8S1w/exec");
   const [airtableEnabled, setAirtableEnabled] = useState(false);
   const [airtableApiKey, setAirtableApiKey] = useState("");
   const [airtableBaseId, setAirtableBaseId] = useState("");
@@ -109,8 +109,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
         setTelegramEnabled(!!config.telegramEnabled);
         setTelegramBotToken(config.telegramBotToken || "");
         setTelegramChatId(config.telegramChatId || "");
-        setSheetsEnabled(!!config.sheetsEnabled);
-        setSheetsUrl(config.sheetsUrl || "");
+        setSheetsEnabled(true);
+        setSheetsUrl(config.sheetsUrl || "https://script.google.com/macros/s/AKfycbyTU4WSJDkZuw61z1aKTTgVs0Y7gIwjK5puNgldil7euSN76e-4wVsIjZvJ_8zg8S1w/exec");
         setAirtableEnabled(!!config.airtableEnabled);
         setAirtableApiKey(config.airtableApiKey || "");
         setAirtableBaseId(config.airtableBaseId || "");
@@ -140,8 +140,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
           telegramEnabled,
           telegramBotToken,
           telegramChatId,
-          sheetsEnabled,
-          sheetsUrl,
+          sheetsEnabled: true,
+          sheetsUrl: sheetsUrl || "https://script.google.com/macros/s/AKfycbyTU4WSJDkZuw61z1aKTTgVs0Y7gIwjK5puNgldil7euSN76e-4wVsIjZvJ_8zg8S1w/exec",
           airtableEnabled,
           airtableApiKey,
           airtableBaseId,
@@ -588,6 +588,77 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
                     {r.descricao}
                   </p>
 
+                  {r.nome_denunciante && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50/60 border border-indigo-100 rounded-lg text-indigo-950 font-bold text-[10px] w-fit">
+                      <span className="text-[11px]">👤</span>
+                      <span>Denunciante: <strong className="text-indigo-800 font-extrabold">{r.nome_denunciante}</strong></span>
+                    </div>
+                  )}
+
+                  {r.latitude !== undefined && r.longitude !== undefined && (
+                    <div className="mt-2.5 p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-150 pb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-red-700 flex items-center gap-1.5 animate-pulse-subtle">
+                          <MapPin className="w-3.5 h-3.5 text-red-600" />
+                          Coordenadas GPS de Origem
+                        </span>
+                        
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {r.google_maps_link && (
+                            <a
+                              href={r.google_maps_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] font-black uppercase text-blue-700 hover:underline flex items-center gap-1 shrink-0 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 no-underline transition-colors"
+                            >
+                              <Globe className="w-3 h-3 text-blue-600" /> Google Maps ↗
+                            </a>
+                          )}
+                          <a
+                            href={`https://www.openstreetmap.org/?mlat=${r.latitude}&mlon=${r.longitude}#map=17/${r.latitude}/${r.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-black uppercase text-emerald-700 hover:underline flex items-center gap-1 shrink-0 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 no-underline transition-colors"
+                          >
+                            <span className="text-[11px]">🗺️</span> OpenStreetMap ↗
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-[11px] text-slate-700 leading-tight">
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Latitude:</span>
+                          <span className="font-mono text-slate-900 font-bold">{r.latitude.toFixed(6)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Longitude:</span>
+                          <span className="font-mono text-slate-900 font-bold">{r.longitude.toFixed(6)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Precisão GPS:</span>
+                          <span className="text-slate-900 font-bold">{r.precisao ? `±${r.precisao.toFixed(1)}m` : "Não disponível"}</span>
+                        </div>
+                        {r.data_local && r.hora_local && (
+                          <div className="col-span-2 md:col-span-3">
+                            <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Registo do Dispositivo:</span>
+                            <span className="text-slate-800 font-bold">{r.data_local} às {r.hora_local}</span>
+                          </div>
+                        )}
+                        {r.endereco_completo ? (
+                          <div className="col-span-2 md:col-span-3 bg-white p-2.5 rounded border border-slate-200/60 text-slate-800">
+                            <span className="text-[9px] font-bold text-red-700 block uppercase mb-0.5">Endereço Resolvido (OSM + Landmarks):</span>
+                            <span className="font-bold leading-relaxed">{r.endereco_completo}</span>
+                          </div>
+                        ) : (
+                          <div className="col-span-2 md:col-span-3 bg-amber-50/70 p-2.5 rounded border border-amber-200/60 text-amber-900">
+                            <span className="text-[9px] font-bold text-amber-800 block uppercase mb-0.5">Endereço de Geocodificação:</span>
+                            <span className="font-medium">Endereço literal não encontrado via OpenStreetMap (Nominatim). Coordenadas geográficas exatas protegidas: <strong className="font-mono">{r.latitude.toFixed(6)}, {r.longitude.toFixed(6)}</strong>.</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center justify-between gap-3 text-[10px] text-slate-450">
                     <div className="flex flex-wrap items-center gap-4">
                       <span className="flex items-center gap-1">
@@ -678,100 +749,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
               
               {/* Secção Google Sheets */}
               <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-800">Ativar Integração Google Sheets</span>
-                  <label className="relative inline-flex items-center cursor-pointer select-none">
-                    <input 
-                      type="checkbox" 
-                      checked={sheetsEnabled}
-                      onChange={(e) => setSheetsEnabled(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
-                  </label>
-                </div>
-
-                {sheetsEnabled && (
-                  <div className="space-y-3 pt-1">
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-slate-500 font-extrabold uppercase block select-none">URL da Web App (Google Apps Script)</label>
-                      <input 
-                        type="url" 
-                        value={sheetsUrl}
-                        onChange={(e) => setSheetsUrl(e.target.value)}
-                        placeholder="Ex: https://script.google.com/macros/s/.../exec"
-                        className="w-full bg-slate-50 border border-slate-205 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-red-500 transition-colors font-medium"
-                      />
+                {/* Estado do Canal de Ligação */}
+                <div className="p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl space-y-1.5 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <span className="text-[10px] uppercase font-black tracking-wider text-emerald-800">
+                        Canal de Ligação Ativo (Google Sheets)
+                      </span>
                     </div>
-
-                    <div className="pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleTestConnection("sheets")}
-                        disabled={testingService === "sheets"}
-                        className="w-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold py-1.5 px-3 rounded-lg text-[10px] uppercase transition-colors cursor-pointer select-none border-none text-center"
-                      >
-                        {testingService === "sheets" ? "🔄 A testar..." : "⚡ Testar Conexão Google Sheets"}
-                      </button>
-                    </div>
-
-                    {testResults["sheets"] && (
-                      <div className={`p-2 rounded-lg text-[10px] leading-snug font-semibold border ${
-                        testResults["sheets"].success 
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-150" 
-                          : "bg-rose-50 text-rose-850 border-rose-150"
-                      }`}>
-                        {testResults["sheets"].success ? "✅ " : "❌ "}
-                        {testResults["sheets"].message}
-                      </div>
-                    )}
-
-                    <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg leading-relaxed text-[9px] text-slate-450 font-medium space-y-1.5">
-                      <div>
-                        ⚡ <strong>Instruções de Configuração Rápida (100% Grátis & Sem Expiração):</strong>
-                      </div>
-                      <ol className="list-decimal pl-3 space-y-1">
-                        <li>Crie uma folha de cálculo vazia no seu <a href="https://sheets.new" target="_blank" rel="noopener noreferrer" className="font-bold underline text-indigo-650">Google Sheets ↗</a>.</li>
-                        <li>No menu superior, vá a <strong>Extensões</strong> &rarr; <strong>Apps Script</strong>.</li>
-                        <li>Apague todo o código existente e cole este código exato:</li>
-                      </ol>
-                      
-                      <pre className="bg-slate-100 p-2 rounded text-[8px] font-mono leading-tight block select-all overflow-x-auto max-h-28 py-1.5 text-slate-600 border border-slate-200">
-{`function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(["ID de Denúncia", "Código do Utente", "Tipo de Incidente", "Localização", "Quando Ocorreu", "Testemunhas", "Descrição Detalhada", "Data de Registo", "Status Atual"]);
-    }
-    sheet.appendRow([
-      data.id || "",
-      data.user_code || "",
-      data.tipo || "",
-      data.local || "",
-      data.quando || "",
-      data.testemunhas || "",
-      data.descricao || "",
-      data.created_at ? new Date(data.created_at).toLocaleString("pt-MZ", {timeZone: "Africa/Maputo"}) : "",
-      data.status || "Recebido"
-    ]);
-    return ContentService.createTextOutput(JSON.stringify({success:true})).setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({success:false,error:err.toString()})).setMimeType(ContentService.MimeType.JSON);
-  }
-}`}
-                      </pre>
-
-                      <ol className="list-decimal pl-3 space-y-1" start={4}>
-                        <li>Clique no botão azul <strong>Implementar</strong> (Deploy) &rarr; <strong>Nova implementação</strong>.</li>
-                        <li>No ícone da roda dentada, selecione <strong>Aplicação Web</strong> (Web App).</li>
-                        <li>Defina: Executar como: <strong>Eu</strong> (A sua conta), Quem tem acesso: <strong>Qualquer pessoa</strong>.</li>
-                        <li>Clique em Implementar, conceda as permissões de acesso ao seu próprio documento e <strong>copie o URL gerado</strong> para colar no campo acima.</li>
-                      </ol>
-                      <p className="font-bold text-center text-emerald-700 bg-emerald-50/50 p-1.5 rounded border border-emerald-100/60 mt-1">Pronto! Toda nova denúncia será registada de forma confidencial em ambos os lugares no mesmo milissegundo! 🚀</p>
-                    </div>
+                    <span className="text-[9px] font-bold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-150">
+                      Pronto 🚀
+                    </span>
                   </div>
-                )}
+                  <p className="text-[10px] text-slate-600 leading-relaxed font-semibold">
+                    💡 <strong>Base de Dados Vinculada Internamente:</strong> A sincronização das denúncias com a folha de cálculo do Google Sheets está ativa no backend. Todos os incidentes reportados em Moçambique são registados de imediato com segurança e total sigilo.
+                  </p>
+                </div>
               </div>
 
               <button
@@ -782,6 +779,95 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onRefreshStats }
                 {isSavingWhatsApp ? "A gravar..." : "💾 Guardar Parâmetros de Integração"}
               </button>
             </form>
+          </div>
+
+          {/* Central de SEO & Indexação Google */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+            <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+              <Globe className="w-4.5 h-4.5 text-indigo-600" /> SEO &amp; Indexação no Google
+            </h4>
+            
+            <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+              Configurámos o sitemap, robots, metatags avançadas e o Schema markup. Para que o site apareça no Google ao pesquisar <strong>"denúncia anónima"</strong> em Moçambique, siga o guia prático abaixo:
+            </p>
+
+            {/* Simulação de Resultado de Pesquisa do Google */}
+            <div className="border border-slate-150 p-3 rounded-xl bg-slate-50 space-y-1">
+              <span className="text-[10px] text-slate-450 uppercase font-bold tracking-wider block">Pré-visualização no Google</span>
+              <div className="bg-white p-3 rounded-lg border border-slate-100 shadow-sm space-y-1">
+                <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                  <Globe className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-slate-500 font-semibold truncate hover:underline cursor-pointer">https://apoio.mz</span>
+                </div>
+                <h3 className="text-sm font-bold text-blue-800 hover:underline cursor-pointer leading-tight">
+                  Apoio MZ | Denúncia Anónima e Proteção Contra Violência em Moçambique
+                </h3>
+                <p className="text-[10px] text-slate-605 leading-snug">
+                  Plataforma de denúncia anónima e apoio a vítimas de violência doméstica, abuso e assédio em Moçambique. Canal de segurança 100% sigiloso e gratuito.
+                </p>
+              </div>
+            </div>
+
+            {/* Lista de Verificação Técnica Local */}
+            <div className="space-y-2">
+              <span className="text-[10px] text-slate-500 font-extrabold uppercase block tracking-wider">Configurações Ativas no Servidor</span>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <a 
+                  href="/sitemap.xml" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 p-2 bg-indigo-50/50 border border-indigo-100 hover:border-indigo-200 rounded-xl transition-all cursor-pointer font-bold text-[10px] text-indigo-900 justify-center"
+                >
+                  <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>Sitemap Ativo ↗</span>
+                </a>
+                <a 
+                  href="/robots.txt" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 p-2 bg-indigo-50/50 border border-indigo-100 hover:border-indigo-200 rounded-xl transition-all cursor-pointer font-bold text-[10px] text-indigo-900 justify-center"
+                >
+                  <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>Robots.txt Ativo ↗</span>
+                </a>
+              </div>
+
+              <div className="p-2.5 bg-emerald-50 border border-emerald-100 rounded-xl text-[10px] leading-relaxed text-emerald-850 font-semibold space-y-1">
+                <div className="flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Tag estruturada Schema.org configurada para Moçambique (MZ).</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Plano de Ação - Próximos Passos */}
+            <div className="p-3 bg-indigo-50/40 border border-indigo-150 rounded-xl space-y-2">
+              <span className="text-[10px] text-indigo-950 font-extrabold uppercase block tracking-wider">Plano de Ação para Indexação Imediata</span>
+              
+              <ol className="list-decimal pl-4.5 text-[10.5px] leading-relaxed text-slate-650 space-y-2 font-semibold">
+                <li>
+                  <strong className="text-slate-800">Registar o Domínio apoio.mz:</strong> 
+                  <p className="font-medium text-[10px] text-slate-500 mt-0.5">Garanta que o domínio <code className="bg-white px-1 py-0.5 border border-slate-150 rounded text-slate-800 font-mono">apoio.mz</code> está ativo e direcionado para este servidor.</p>
+                </li>
+                <li>
+                  <strong className="text-slate-800">Criar Conta no Google Search Console:</strong> 
+                  <p className="font-medium text-[10px] text-slate-500 mt-0.5">Visite <a href="https://search.google.com/search-console" target="_blank" rel="noopener noreferrer" className="font-bold underline text-indigo-650 hover:text-indigo-800">search.google.com ↗</a> e registe o site.</p>
+                </li>
+                <li>
+                  <strong className="text-slate-800">Verificar a Propriedade do Domínio:</strong> 
+                  <p className="font-medium text-[10px] text-slate-500 mt-0.5">Adicione o registo de DNS TXT gerado pelo Google nos servidores de nomes do seu domínio.</p>
+                </li>
+                <li>
+                  <strong className="text-slate-800">Submeter o Sitemap:</strong> 
+                  <p className="font-medium text-[10px] text-slate-500 mt-0.5">No painel esquerdo, clique em <strong>Sitemaps</strong> e envie <code className="bg-white px-1 py-0.5 border border-slate-150 rounded text-slate-800 font-mono">/sitemap.xml</code>.</p>
+                </li>
+                <li>
+                  <strong className="text-slate-800">Pedir Indexação de Páginas:</strong> 
+                  <p className="font-medium text-[10px] text-slate-500 mt-0.5">Inspecione o URL <code className="bg-white px-1 py-0.5 border border-slate-150 rounded text-slate-800 font-mono">https://apoio.mz/</code> e clique em <strong>"Pedir Indexação"</strong> para que o Google varra o site de imediato!</p>
+                </li>
+              </ol>
+            </div>
           </div>
 
           <div className="bg-gradient-to-br from-indigo-900 to-indigo-950 p-5 rounded-2xl text-indigo-50 leading-relaxed space-y-3 shadow-md border-none">

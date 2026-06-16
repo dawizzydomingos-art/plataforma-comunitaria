@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Shield, Eye, CheckCircle, AlertTriangle, FileText, Trash2, Clock } from "lucide-react";
+import { Shield, Eye, CheckCircle, AlertTriangle, FileText, Trash2, Clock, Phone, User } from "lucide-react";
 import type { Report } from "../types";
 
 interface ReportingFormProps {
@@ -24,6 +24,10 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
   const [notification, setNotification] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submittedCode, setSubmittedCode] = useState("");
+
+  // New states for GPS tracking and reporter name
+  const [nomeDenunciante, setNomeDenunciante] = useState("");
+
 
   const incidentTypes = [
     "Violência doméstica",
@@ -64,7 +68,15 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
           quando,
           testemunhas,
           descricao,
-          user_code: userCode
+          user_code: userCode,
+          nome_denunciante: nomeDenunciante.trim() || undefined,
+          latitude: undefined,
+          longitude: undefined,
+          precisao: undefined,
+          endereco_completo: undefined,
+          google_maps_link: undefined,
+          data_local: undefined,
+          hora_local: undefined
         })
       });
 
@@ -80,6 +92,8 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
         setQuando("");
         setTestemunhas("");
         setDescricao("");
+        setNomeDenunciante("");
+
         setShowSuccessModal(true); // Open the beautiful stylized modal
         onRefreshStats();
       } else {
@@ -126,6 +140,20 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-slate-500" />
+                Nome do Denunciante (Opcional)
+              </label>
+              <input
+                type="text"
+                placeholder="Escreva o seu nome se preferir identificar-se (deixe em branco para manter sigilo absoluto)"
+                value={nomeDenunciante}
+                onChange={(e) => setNomeDenunciante(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                 Tipo de Incidente *
               </label>
@@ -144,17 +172,19 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                Localização (bairro, rua, província)
-              </label>
-              <input
-                type="text"
-                placeholder="Exemplo: Bairro Central, Beira, Sofala"
-                value={local}
-                onChange={(e) => setLocal(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
-              />
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Localização (bairro, rua, província)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Exemplo: Bairro Central, Beira, Sofala"
+                  value={local}
+                  onChange={(e) => setLocal(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-colors"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -214,14 +244,14 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-red-600 hover:bg-black active:bg-black text-white font-bold py-3 px-5 rounded-xl border-none shadow-md shadow-red-200 hover:shadow-lg hover:shadow-black hover:shadow-red-350 disabled:bg-slate-300 disabled:shadow-none hover:scale-[1.01] transition-all cursor-pointer text-sm flex items-center justify-center gap-2"
+              className="w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-extrabold py-3.5 px-5 rounded-xl border-none shadow-lg shadow-red-105 hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer text-sm flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>
                   <Clock className="w-4 h-4 animate-spin" /> Enviando Denúncia de Forma Segura...
                 </>
               ) : (
-                <>🚨 Enviar Denúncia de Forma Segura</>
+                <span className="flex items-center gap-2 justify-center"><Shield className="w-4 h-4 text-white" /> Enviar Denúncia de Forma Segura</span>
               )}
             </button>
           </form>
@@ -229,25 +259,25 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({
 
         {/* Info Column */}
         <div className="lg:col-span-5 space-y-5">
-          <div className="bg-gradient-to-br from-red-600 to-amber-600 text-white p-6 rounded-2xl shadow-md space-y-4">
-            <h3 className="text-base font-bold flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 animate-pulse text-amber-300" /> Está em perigo imediato?
+          <div className="bg-white text-black p-6 rounded-2xl shadow-2xl space-y-4 border border-slate-200/80 animate-float-slow">
+            <h3 className="text-base font-black flex items-center gap-2 uppercase tracking-wide text-black">
+              <AlertTriangle className="w-5 h-5 animate-pulse text-red-600" /> Está em perigo imediato?
             </h3>
-            <p className="text-xs text-red-50 leading-relaxed font-normal">
+            <p className="text-xs text-slate-800 leading-relaxed font-bold">
               Se a sua integridade física ou a vida de terceiros estiver sob ameaça eminente AGORA, por favor não preencha apenas a denúncia neste site. Telefone com a maior urgência!
             </p>
             <div className="space-y-2">
               <a
                 href="tel:112"
-                className="flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-black active:bg-black text-white font-bold py-3.5 px-4 rounded-xl text-sm border-none shadow-sm transition-all text-center"
+                className="flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-black py-3.5 px-4 rounded-xl text-sm border-none shadow-md transition-all text-center uppercase tracking-wider cursor-pointer"
               >
-                📞 Ligar 112 — Polícia de Moçambique
+                <Phone className="w-4 h-4 text-white" /> Ligar 112 — Polícia
               </a>
               <a
                 href="tel:+258823334440"
-                className="flex items-center justify-center gap-2 w-full bg-red-700/60 hover:bg-red-700/80 text-white font-semibold py-2.5 px-4 rounded-xl text-xs border-none transition-all text-center"
+                className="flex items-center justify-center gap-2 w-full bg-indigo-950 hover:bg-indigo-900 text-white font-black py-2.5 px-4 rounded-xl text-xs border border-indigo-900 transition-all text-center uppercase tracking-wider cursor-pointer"
               >
-                💙 Ligar LAC (+258 82 333 4440)
+                <Phone className="w-4 h-4 text-indigo-200" /> Ligar LAC (+258 82 333 4440)
               </a>
             </div>
           </div>

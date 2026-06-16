@@ -56,7 +56,7 @@ export const ContactSection: React.FC = () => {
 
               <a
                 href={`tel:${hl.number.replace(/\s+/g, "")}`}
-                className="bg-red-650 hover:bg-red-700 text-white font-extrabold py-3 px-5 rounded-xl border-none shadow-sm flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer text-xs shrink-0 transition-transform hover:scale-[1.02]"
+                className="bg-red-600 hover:bg-black text-white font-extrabold py-3 px-5 rounded-xl border-none shadow-sm flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer text-xs shrink-0 transition-transform hover:scale-[1.02]"
               >
                 <Phone className="w-3.5 h-3.5" /> Ligar {hl.number}
               </a>

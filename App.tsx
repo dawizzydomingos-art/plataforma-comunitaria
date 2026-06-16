@@ -20,7 +20,12 @@ import {
   ChevronRight,
   Smartphone,
   Download,
-  Share2
+  Share2,
+  Home,
+  AlertOctagon,
+  Brain,
+  Users,
+  Coins
 } from "lucide-react";
 
 import { ReportingForm } from "./components/ReportingForm";
@@ -28,8 +33,8 @@ import { AIChat } from "./components/AIChat";
 import { NewsSection } from "./components/NewsSection";
 import { ContactSection } from "./components/ContactSection";
 import { AdminDashboard } from "./components/AdminDashboard";
-import { AndroidSection } from "./components/AndroidSection";
 import type { Report } from "./types";
+import { IntroSplash } from "./components/IntroSplash";
 
 // Generate or retrieve anonymous user code
 function getOrCreateUserCode() {
@@ -46,6 +51,7 @@ function getOrCreateUserCode() {
 }
 
 const App: React.FC = () => {
+  const [showIntro, setShowIntro] = useState<boolean>(true);
   const [currentTab, setCurrentTab] = useState<string>("inicio");
   const [userCode, setUserCode] = useState<string>("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -166,22 +172,22 @@ const App: React.FC = () => {
   // Curated static local info arrays
   const signalAbuses = [
     {
-      icon: "🤛",
+      icon: <AlertOctagon className="w-6 h-6 text-red-600" />,
       title: "Violência Física",
       desc: "Murros, empurrões, mutilações ou qualquer agressão contra a integridade corporal."
     },
     {
-      icon: "🧠",
+      icon: <Brain className="w-6 h-6 text-indigo-600" />,
       title: "Abuso Psicológico e Coação",
       desc: "Humilhação constante, ameaças, isolamento social forçado do parceiro ou vigilância sob ciúmes extremos."
     },
     {
-      icon: "🚸",
+      icon: <Users className="w-6 h-6 text-amber-600" />,
       title: "Abuso de Menores e Crianças",
       desc: "Castigos físicos violentos, exploração laboral forçada precoce ou submissão a práticas degradantes."
     },
     {
-      icon: "💰",
+      icon: <Coins className="w-6 h-6 text-emerald-600" />,
       title: "Violência Económica",
       desc: "Apropriação ilícita do salário, da reforma do cônjuge/idoso ou privação financeira para induzir dependência."
     }
@@ -206,7 +212,18 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-red-200">
+    <React.Fragment>
+      {showIntro && (
+        <IntroSplash
+          onComplete={() => {
+            setShowIntro(false);
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("pc_intro_watched", "true");
+            }
+          }}
+        />
+      )}
+      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-red-200">
       
       {/* Toast Alert popup */}
       {toastMsg && (
@@ -216,72 +233,69 @@ const App: React.FC = () => {
       )}
 
       {/* Navigation header */}
-      <nav className="sticky top-0 z-40 bg-white/95 backdrop-filter backdrop-blur-md border-b border-slate-100 shadow-sm px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+      <nav className="sticky top-0 z-40 bg-indigo-950 border-b border-indigo-900 shadow-xl px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3 cursor-pointer" onClick={() => setCurrentTab("inicio")}>
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-red-600 to-indigo-700 flex items-center justify-center text-white font-black text-sm shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-indigo-700 flex items-center justify-center text-white font-black text-base shadow-md">
             PC
           </div>
           <div>
-            <span className="font-extrabold text-sm tracking-tight text-slate-950 block">Plataforma Comunitária de Apoio</span>
-            <span className="text-[10px] text-slate-500 font-bold block leading-none">Moçambique</span>
+            <span className="font-extrabold text-[20px] tracking-tight text-white block leading-tight">Plataforma Comunitária de Apoio</span>
+            <span className="text-[12px] text-indigo-400 font-bold block leading-none tracking-wider uppercase">Moçambique</span>
           </div>
         </div>
 
         {/* Desktop Links */}
-        <div className="hidden lg:flex items-center gap-1">
+        <div className="hidden lg:flex items-center gap-1.5">
           <button
             onClick={() => setCurrentTab("inicio")}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold tracking-wide transition-all border-none ${
-              currentTab === "inicio" ? "bg-indigo-50 text-indigo-800" : "text-slate-650 hover:bg-slate-50"
+            className={`py-2 px-3.5 rounded-xl text-[14px] font-bold tracking-wide transition-all border-none flex items-center gap-2 ${
+              currentTab === "inicio" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
             }`}
           >
-            🏠 Início
+            <Home className="w-4.5 h-4.5" />
+            Início
           </button>
           <button
             onClick={() => {
               setCurrentTab("noticias");
               fetchStats();
             }}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold tracking-wide transition-all border-none ${
-              currentTab === "noticias" ? "bg-indigo-50 text-indigo-800" : "text-slate-650 hover:bg-slate-50"
+            className={`py-2 px-3.5 rounded-xl text-[14px] font-bold tracking-wide transition-all border-none flex items-center gap-2 ${
+              currentTab === "noticias" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
             }`}
           >
-            📰 Notícias MZ
+            <Rss className="w-4.5 h-4.5" />
+            Notícias MZ
           </button>
           <button
             onClick={() => {
               setCurrentTab("denuncia");
               setDenunciaSubTab("fazer");
             }}
-            className={`py-2 px-4 rounded-xl text-xs font-bold tracking-wide transition-all border-none ${
-              currentTab === "denuncia" ? "bg-red-50 text-red-750" : "text-red-600 hover:bg-red-50/50"
+            className={`py-2 px-4 rounded-xl text-[14px] font-bold tracking-wide transition-all border-none flex items-center gap-2 ${
+              currentTab === "denuncia" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
             }`}
           >
-            🚨 Participações & Denúncias
+            <Shield className="w-4.5 h-4.5" />
+            Participações & Denúncias
           </button>
           <button
             onClick={() => setCurrentTab("chat")}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold tracking-wide transition-all border-none ${
-              currentTab === "chat" ? "bg-indigo-50 text-indigo-800" : "text-slate-650 hover:bg-slate-50"
+            className={`py-2 px-3.5 rounded-xl text-[14px] font-bold tracking-wide transition-all border-none flex items-center gap-2 ${
+              currentTab === "chat" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
             }`}
           >
-            💬 Apoio com IA
+            <MessageSquare className="w-4.5 h-4.5" />
+            Apoio com IA
           </button>
           <button
             onClick={() => setCurrentTab("contactos")}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold tracking-wide transition-all border-none ${
-              currentTab === "contactos" ? "bg-indigo-50 text-indigo-800" : "text-slate-650 hover:bg-slate-50"
+            className={`py-2 px-3.5 rounded-xl text-[14px] font-bold tracking-wide transition-all border-none flex items-center gap-2 ${
+              currentTab === "contactos" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
             }`}
           >
-            📞 Contactos
-          </button>
-          <button
-            onClick={() => setCurrentTab("android")}
-            className={`py-2 px-3.5 rounded-xl text-xs font-bold tracking-wide transition-all border-none flex items-center gap-1.5 ${
-              currentTab === "android" ? "bg-indigo-50 text-indigo-800" : "text-slate-650 hover:bg-slate-50"
-            }`}
-          >
-            📱 App Android
+            <Phone className="w-4.5 h-4.5" />
+            Contactos
           </button>
         </div>
 
@@ -289,32 +303,35 @@ const App: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSosModalOpen(true)}
-            className="bg-red-600 text-white font-extrabold text-[11px] py-2 px-4 rounded-xl shadow-lg shadow-red-200 border-none uppercase tracking-wider hover:bg-black active:bg-black active:scale-95 hover:shadow-xl transition-all select-none animate-pulse shrink-0 cursor-pointer"
+            className="bg-white text-red-600 font-black text-[14px] py-1.5 px-4 rounded-xl shadow-lg shadow-red-500/10 border-none uppercase tracking-wide hover:bg-red-50 active:bg-red-100 active:scale-95 transition-all select-none shrink-0 cursor-pointer"
           >
-            🆘 SOS Emergência
+            SOS
           </button>
 
           {/* Mobile hamburger menu toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-xl text-slate-650 hover:bg-slate-50 border-none cursor-pointer"
+            className="lg:hidden p-2 rounded-xl text-white hover:bg-zinc-800 border-none cursor-pointer"
           >
-            {mobileMenuOpen ? <X className="w-5.5 h-5.5" /> : <Menu className="w-5.5 h-5.5" />}
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
       </nav>
 
       {/* Mobile Nav Overlay Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-b border-slate-100 py-3 px-4 flex flex-col gap-1 shadow-inner absolute top-[65px] left-0 w-full z-40 animate-fadeIn font-semibold text-xs">
+        <div className="lg:hidden bg-indigo-950 border-b border-indigo-900 py-3 px-4 flex flex-col gap-1.5 shadow-xl absolute top-[68px] left-0 w-full z-45 animate-fadeIn font-extrabold text-[14px]">
           <button
             onClick={() => {
               setCurrentTab("inicio");
               setMobileMenuOpen(false);
             }}
-            className="w-full text-left py-2.5 px-3 rounded-lg text-slate-700 hover:bg-slate-50 text-xs border-none"
+            className={`w-full text-left py-2.5 px-3 rounded-lg border-none font-bold flex items-center gap-2.5 text-[14px] ${
+              currentTab === "inicio" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
+            }`}
           >
-            🏠 Início
+            <Home className="w-4.5 h-4.5" />
+            Início
           </button>
           <button
             onClick={() => {
@@ -322,9 +339,12 @@ const App: React.FC = () => {
               fetchStats();
               setMobileMenuOpen(false);
             }}
-            className="w-full text-left py-2.5 px-3 rounded-lg text-slate-700 hover:bg-slate-50 text-xs border-none"
+            className={`w-full text-left py-2.5 px-3 rounded-lg border-none font-bold flex items-center gap-2.5 text-[14px] ${
+              currentTab === "noticias" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
+            }`}
           >
-            📰 Notícias e Alertas
+            <Rss className="w-4.5 h-4.5" />
+            Notícias e Alertas
           </button>
           <button
             onClick={() => {
@@ -332,36 +352,36 @@ const App: React.FC = () => {
               setDenunciaSubTab("fazer");
               setMobileMenuOpen(false);
             }}
-            className="w-full text-left py-2.5 px-3 rounded-lg text-red-650 hover:bg-red-50 text-xs font-bold border-none"
+            className={`w-full text-left py-2.5 px-3 rounded-lg border-none font-bold flex items-center gap-2.5 text-[14px] ${
+              currentTab === "denuncia" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
+            }`}
           >
-            🚨 Participações & Denúncias
+            <Shield className="w-4.5 h-4.5" />
+            Participações & Denúncias
           </button>
           <button
             onClick={() => {
               setCurrentTab("chat");
               setMobileMenuOpen(false);
             }}
-            className="w-full text-left py-2.5 px-3 rounded-lg text-slate-700 hover:bg-slate-50 text-xs border-none"
+            className={`w-full text-left py-2.5 px-3 rounded-lg border-none font-bold flex items-center gap-2.5 text-[14px] ${
+              currentTab === "chat" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
+            }`}
           >
-            💬 Apoio com IA Chat
+            <MessageSquare className="w-4.5 h-4.5" />
+            Apoio com IA Chat
           </button>
           <button
             onClick={() => {
               setCurrentTab("contactos");
               setMobileMenuOpen(false);
             }}
-            className="w-full text-left py-2.5 px-3 rounded-lg text-slate-700 hover:bg-slate-50 text-xs border-none"
+            className={`w-full text-left py-2.5 px-3 rounded-lg border-none font-bold flex items-center gap-2.5 text-[14px] ${
+              currentTab === "contactos" ? "bg-indigo-600 text-white" : "text-slate-200 hover:bg-indigo-600 hover:text-white"
+            }`}
           >
-            📞 Contactos Oficiais
-          </button>
-          <button
-            onClick={() => {
-              setCurrentTab("android");
-              setMobileMenuOpen(false);
-            }}
-            className="w-full text-left py-2.5 px-3 rounded-lg text-slate-700 hover:bg-slate-50 text-xs border-none font-bold"
-          >
-            📱 Aplicativo Android
+            <Phone className="w-4.5 h-4.5" />
+            Contactos Oficiais
           </button>
         </div>
       )}
@@ -378,8 +398,8 @@ const App: React.FC = () => {
                 🛡 Moçambique Seguro e Unido
               </span>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-950 tracking-tight leading-none bg-gradient-to-r from-slate-900 to-indigo-900 bg-clip-text">
-                Juntos Erguemos a Voz <br />
-                Contra a Violência Doméstica
+                Denúncia Anónima <br />
+                e totalmente segura.
               </h1>
               <p className="text-sm font-medium text-slate-550 max-w-lg mx-auto leading-relaxed">
                 Reporte de forma 100% confidencial, aceda a alertas de segurança locais e receba apoio especializado 24/7 com inteligência artificial de última geração.
@@ -387,9 +407,9 @@ const App: React.FC = () => {
               <div className="pt-2 flex flex-wrap justify-center gap-3">
                 <button
                   onClick={() => setCurrentTab("denuncia")}
-                  className="bg-red-600 hover:bg-black text-white font-extrabold py-3.5 px-6 rounded-xl text-xs border-none shadow-md shadow-red-200 hover:shadow-lg hover:shadow-black active:bg-black transition-all hover:scale-[1.02] cursor-pointer"
+                  className="bg-indigo-950 hover:bg-indigo-900 text-white font-extrabold py-3.5 px-6 rounded-xl text-xs border-none shadow-md shadow-indigo-950/25 hover:shadow-lg hover:shadow-indigo-950/40 active:bg-indigo-950 transition-all hover:scale-[1.02] cursor-pointer"
                 >
-                  🚨 Fazer Denúncia Anónima
+                  <span className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5 text-white" /> Fazer Denúncia Anónima</span>
                 </button>
                 <button
                   onClick={() => setCurrentTab("chat")}
@@ -447,7 +467,7 @@ const App: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-medium">
                   {signalAbuses.map((item, idx) => (
                     <div key={idx} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 hover:border-slate-150 transition-colors space-y-1">
-                      <div className="text-2xl">{item.icon}</div>
+                      <div className="p-2 bg-slate-100 rounded-xl w-fit mb-1">{item.icon}</div>
                       <h4 className="font-extrabold text-slate-900 text-xs">{item.title}</h4>
                       <p className="text-slate-550 leading-relaxed text-[11px] font-semibold">{item.desc}</p>
                     </div>
@@ -515,7 +535,7 @@ const App: React.FC = () => {
                       : "text-slate-500 hover:text-slate-800"
                   }`}
                 >
-                  🚨 Registar Nova Queixa
+                  <span className="flex items-center gap-1.5"><PlusCircle className="w-3.5 h-3.5" /> Registar Nova Queixa</span>
                 </button>
                 <button
                   type="button"
@@ -529,7 +549,7 @@ const App: React.FC = () => {
                       : "text-slate-500 hover:text-slate-800"
                   }`}
                 >
-                  📋 Consultar Meus Casos ({myReports.length})
+                  <span className="flex items-center gap-1.5"><History className="w-3.5 h-3.5" /> Consultar Meus Casos ({myReports.length})</span>
                 </button>
               </div>
             </div>
@@ -636,15 +656,6 @@ const App: React.FC = () => {
         {/* ==================== SCREEN: CONTACT / HOTLINES ==================== */}
         {currentTab === "contactos" && <ContactSection />}
 
-        {/* ==================== SCREEN: APPS / ANDROID ==================== */}
-        {currentTab === "android" && (
-          <AndroidSection
-            deferredPrompt={deferredPrompt}
-            isInstalled={isInstalled}
-            onNavigateToTab={(tabName) => setCurrentTab(tabName)}
-          />
-        )}
-
         {/* ==================== SCREEN: ADMIN PANEL ==================== */}
         {currentTab === "admin" && (
           <AdminDashboard
@@ -698,19 +709,19 @@ const App: React.FC = () => {
                 href="tel:112"
                 className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-black active:bg-black text-white font-extrabold py-3 rounded-xl border-none shadow-sm transition-all text-center"
               >
-                📞 Ligar Polícia: 112
+                <Phone className="w-4 h-4 text-white" /> Ligar Polícia: 112
               </a>
               <a
                 href="tel:116"
                 className="w-full flex items-center justify-center gap-2 bg-indigo-650 hover:bg-indigo-700 text-white font-extrabold py-2.5 rounded-xl border-none transition-colors text-center"
               >
-                📞 Apoio Criança: 116
+                <Phone className="w-4 h-4 text-white" /> Apoio Criança: 116
               </a>
               <a
                 href="tel:+258823334440"
                 className="w-full flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-750 font-bold py-2.5 rounded-xl border border-slate-200 transition-colors text-center"
               >
-                📞 Linha Mulher: +258 82 333 4440
+                <Phone className="w-4 h-4 text-rose-600" /> Linha Mulher: +258 82 333 4440
               </a>
             </div>
 
@@ -724,6 +735,7 @@ const App: React.FC = () => {
         </div>
       )}
     </div>
+    </React.Fragment>
   );
 };
 

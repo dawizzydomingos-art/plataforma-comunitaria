@@ -8,6 +8,16 @@ export interface Report {
   status: "Recebido" | "Em Investigação" | "Resolvido";
   user_code: string;
   created_at: string;
+  
+  // Geolocation and additional information
+  nome_denunciante?: string;
+  latitude?: number;
+  longitude?: number;
+  precisao?: number;
+  endereco_completo?: string;
+  google_maps_link?: string;
+  data_local?: string;
+  hora_local?: string;
 }
 
 export interface ChatMessage {
@@ -22,7 +32,9 @@ export interface NewsArticle {
   description: string;
   source: string;
   date: string;
-  category: "violencia" | "mulheres" | "trafico" | "seguranca";
-  icon: string;
+  category: "seguranca" | "direitos_civis" | "avisos_legais" | "emergencias";
+  icon?: string;
   url: string;
+  image?: string;
+  fullContent?: string;
 }

@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "Report": {
+      "title": "Report",
+      "description": "Denúncia de abuso ou violência doméstica em Moçambique",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "ID exclusivo da denúncia"
+        },
+        "tipo": {
+          "type": "string",
+          "description": "Categoria de abuso ou violência"
+        },
+        "local": {
+          "type": "string",
+          "description": "Localização geral ou detalhada"
+        },
+        "quando": {
+          "type": "string",
+          "description": "Data/período de ocorrência"
+        },
+        "testemunhas": {
+          "type": "string",
+          "description": "Eventuais testemunhas oculares"
+        },
+        "descricao": {
+          "type": "string",
+          "description": "Descrição minuciosa do sucedido"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Recebido", "Em Investigação", "Resolvido"],
+          "description": "Estado operativo da denúncia"
+        },
+        "user_code": {
+          "type": "string",
+          "description": "Código secreto confidencial do utente para consulta"
+        },
+        "created_at": {
+          "type": "string",
+          "description": "Carimbo de data em formato ISO do servidor"
+        },
+        "nome_denunciante": {
+          "type": "string",
+          "description": "Nome opcional do denunciante"
+        },
+        "latitude": {
+          "type": "number",
+          "description": "Latitude capturada via GPS"
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude capturada via GPS"
+        },
+        "precisao": {
+          "type": "number",
+          "description": "Precisão do sinal de satélite em metros"
+        },
+        "endereco_completo": {
+          "type": "string",
+          "description": "Endereço por extenso resolvido no reverso de geocodificação"
+        },
+        "google_maps_link": {
+          "type": "string",
+          "description": "Ligação externa de visualização da coordenada"
+        },
+        "data_local": {
+          "type": "string",
+          "description": "Data local registada pelo dispositivo"
+        },
+        "hora_local": {
+          "type": "string",
+          "description": "Hora local registada pelo dispositivo"
+        }
+      },
+      "required": ["id", "tipo", "descricao", "status", "created_at", "user_code"]
+    }
+  },
+  "firestore": {
+    "reports/{reportId}": {
+      "schema": "Report",
+      "description": "Lista de denúncias recebidas com coordenadas e detalhes."
+    }
+  }
+}

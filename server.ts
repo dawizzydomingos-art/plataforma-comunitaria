@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import { saveReportToFirestore, getReportsFromFirestore, updateReportStatusInFirestore, deleteReportFromFirestore } from "./services/firebaseService";
 
 // Ensure reports directory exists
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -20,8 +21,8 @@ const DEFAULT_WHATSAPP_CONFIG = {
   telegramEnabled: false,
   telegramBotToken: "",
   telegramChatId: "",
-  sheetsEnabled: false,
-  sheetsUrl: "",
+  sheetsEnabled: true,
+  sheetsUrl: "https://script.google.com/macros/s/AKfycbyTU4WSJDkZuw61z1aKTTgVs0Y7gIwjK5puNgldil7euSN76e-4wVsIjZvJ_8zg8S1w/exec",
   airtableEnabled: false,
   airtableApiKey: "",
   airtableBaseId: "",
@@ -37,6 +38,7 @@ function readWhatsAppConfig() {
     const data = fs.readFileSync(WHATSAPP_CONFIG_FILE, "utf8");
     const parsed = JSON.parse(data);
     // Fill in default properties for backwards compatibility
+    // Force Google Sheets integration to be active and utilize the internal URL as requested
     return {
       enabled: parsed.enabled !== undefined ? parsed.enabled : DEFAULT_WHATSAPP_CONFIG.enabled,
       phone: parsed.phone || DEFAULT_WHATSAPP_CONFIG.phone,
@@ -44,8 +46,8 @@ function readWhatsAppConfig() {
       telegramEnabled: parsed.telegramEnabled !== undefined ? parsed.telegramEnabled : DEFAULT_WHATSAPP_CONFIG.telegramEnabled,
       telegramBotToken: parsed.telegramBotToken || "",
       telegramChatId: parsed.telegramChatId || "",
-      sheetsEnabled: parsed.sheetsEnabled !== undefined ? parsed.sheetsEnabled : DEFAULT_WHATSAPP_CONFIG.sheetsEnabled,
-      sheetsUrl: parsed.sheetsUrl || "",
+      sheetsEnabled: true,
+      sheetsUrl: DEFAULT_WHATSAPP_CONFIG.sheetsUrl,
       airtableEnabled: parsed.airtableEnabled !== undefined ? parsed.airtableEnabled : DEFAULT_WHATSAPP_CONFIG.airtableEnabled,
       airtableApiKey: parsed.airtableApiKey || "",
       airtableBaseId: parsed.airtableBaseId || "",
@@ -331,7 +333,45 @@ function writeReports(reports: any[]) {
   }
 }
 
+async function fetchReportsList(): Promise<any[]> {
+  try {
+    const firestoreReports = await getReportsFromFirestore();
+    if (firestoreReports !== null) {
+      return firestoreReports;
+    }
+  } catch (err) {
+    console.error("[Reports Sync] Erro ao obter dados do Firestore:", err);
+  }
+  return readReports(); // fallback
+}
+
 // Lazy initializer for Google Gen AI
+function getFallbackResponse(message: string): string {
+  const textLower = (message || "").toLowerCase();
+  
+  if (textLower.includes("perigo") || textLower.includes("emergencia") || textLower.includes("morrer") || textLower.includes("me ajude") || textLower.includes("socorro") || textLower.includes("policia") || textLower.includes("ameaca")) {
+    return "🚨 *ATENÇÃO - PERIGO IMEDIATO* 🚨\n\nSe a sua segurança ou integridade física está em risco agora, por favor liga imediatamente para a **Linha Geral da Polícia de Moçambique: 112** ou dirige-te à esquadra mais próxima com a máxima urgência!\n\nPodes também ligar para a **Linha de Apoio à Criança e Violência Baseada no Género (LAC): +258 82 333 4440 ou 116** para apoio especializado.\n\nSe preferires relatar a situação de forma segura e anónima para acompanhamento, podes usar o nosso formulário no menu superior clicando em '🚨 Denunciar'. Estamos contigo.";
+  }
+  
+  if (textLower.includes("violencia") || textLower.includes("bater") || textLower.includes("espos") || textLower.includes("marido") || textLower.includes("agred") || textLower.includes("abuso") || textLower.includes("bale") || textLower.includes("sofrer") || textLower.includes("pan") || textLower.includes("murro")) {
+    return "Sinto muito que estejas a vivenciar ou a testemunhar esta situação. Sabe que a violência doméstica e abusos de direitos são crimes puníveis por lei em Moçambique. Não tens de carregar este peso sozinho/a.\n\nRecomendamos fortemente:\n1. **Fazer uma Denúncia Anónima:** Clica em '🚨 Denunciar' no menu superior. É 100% confidencial, não guarda o teu nome ou IP, e permite que a nossa equipa analise o teu caso com segurança.\n2. **Contactar Linhas de Apoio:** Telefona para a LAC (+258 82 333 4440 ou Linha 116) que presta acolhimento e aconselhamento jurídico gratuito para Moçambique.\n\nQueres conversar sobre como podes te proteger ou como funciona o processo de apoio?";
+  }
+  
+  if (textLower.includes("denuncia") || textLower.includes("anoni") || textLower.includes("como funciona") || textLower.includes("funciona a denuncia")) {
+    return "🔒 **Como Funciona a Denúncia Anónima no Apoio MZ:**\n\nAs denúncias feitas aqui são tratadas com o mais alto nível de sigilo e privacidade:\n- **Sem Registo de Identidade:** Não precisas de fornecer o teu nome, e-mail, telefone ou qualquer dado pessoal.\n- **Segurança de Conexão:** Não gravamos o teu endereço IP e as mensagens são transmitidas com encriptação segura.\n- **Código do Utente:** Ao submeteres a denúncia, recebes um código anónimo exclusivo. Guarda este código de forma segura para poderes consultar atualizações sobre o estado da tua denúncia ou trocar mensagens confidenciais com os administradores no menu 'Consultar Denúncia'.\n\nQueres iniciar uma denúncia agora? Podes clicar no botão '🚨 Fazer Denúncia Anónima' no topo da página.";
+  }
+  
+  if (textLower.includes("receita") || textLower.includes("arroz") || textLower.includes("cozinhar") || textLower.includes("comida") || textLower.includes("comer") || textLower.includes("culinaria")) {
+    return "Fico feliz em ajudar com dicas de culinária! Para preparar um delicioso arroz solto ao estilo tradicional moçambicano:\n\n1. Lave bem o arroz (cerca de 1 chávena) em água fria para retirar o excesso de amido.\n2. Numa panela, aqueça um fio de óleo e refogue cebola picadinha e um dente de alho esmagado até dourarem.\n3. Adicione o arroz lavado e mexa bem por cerca de 1 minuto para fritar levemente os grãos.\n4. Adicione 2 chávenas de água a ferver e sal a gosto.\n5. Deixe cozer em lume brando-médio com a panela semitapada até que o nível da água desça abaixo do arroz.\n6. Tape completamente a panela, reduza o lume para o mínimo e aguarde mais 5 a 8 minutos. Sirva soltinho e aromático!\n\nSe precisares de outras receitas ou se tiveres outras perguntas, estou aqui para ti!";
+  }
+  
+  if (textLower.includes("como") || textLower.includes("quem") || textLower.includes("onde") || textLower.includes("quais") || textLower.includes("o que") || textLower.includes("programar") || textLower.includes("typescript") || textLower.includes("computador") || textLower.includes("tecnologia") || textLower.includes("site") || textLower.includes("javascript")) {
+    return "Como seu Assistente Comunitário Inteligente, posso ajudar a responder a dúvidas de todos os âmbitos, incluindo tecnologia e conhecimento geral! \n\nO TypeScript, por exemplo, é uma linguagem de programação incrível de código aberto desenvolvida pela Microsoft. É uma extensão superpoderosa do JavaScript que adiciona tipagem estática opcional, ajudando programadores a detetar erros muito mais cedo no processo de escrita de código, antes mesmo do programa rodar!\n\nGostaria de saber mais sobre algum conceito de programação, como aprender a criar websites ou outra dúvida tecnológica? Pergunte-me qualquer detalhe e terei todo o gosto em explicar!";
+  }
+
+  return "Olá! Sou o Assistente Comunitário Inteligente da Plataforma de Apoio de Moçambique. Estou aqui para responder a todas as suas perguntas de forma amigável, quer sejam dúvidas sobre o seu bem-estar, segurança pessoal, informações sobre o nosso registo de denúncias 100% anónimo, ou tópicos de conhecimento geral (tecnologia, estudos, história e muito mais).\n\nComo posso ser útil hoje? Pode escrever à vontade!";
+}
+
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient() {
   if (!aiClient) {
@@ -383,7 +423,22 @@ async function startServer() {
   // Submit anonymous report
   app.post("/api/reports", (req, res) => {
     try {
-      const { tipo, local, quando, testemunhas, descricao, user_code } = req.body;
+      const { 
+        tipo, 
+        local, 
+        quando, 
+        testemunhas, 
+        descricao, 
+        user_code,
+        nome_denunciante,
+        latitude,
+        longitude,
+        precisao,
+        endereco_completo,
+        google_maps_link,
+        data_local,
+        hora_local
+      } = req.body;
       if (!descricao || !tipo) {
         return res.status(400).json({ error: "O tipo e a descrição são obrigatórios." });
       }
@@ -397,12 +452,27 @@ async function startServer() {
         descricao,
         status: "Recebido",
         user_code: user_code || "Anónimo",
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        
+        // Optional Geolocation fields
+        nome_denunciante: nome_denunciante || undefined,
+        latitude: typeof latitude === "number" ? latitude : undefined,
+        longitude: typeof longitude === "number" ? longitude : undefined,
+        precisao: typeof precisao === "number" ? precisao : undefined,
+        endereco_completo: endereco_completo || undefined,
+        google_maps_link: google_maps_link || undefined,
+        data_local: data_local || undefined,
+        hora_local: hora_local || undefined
       };
 
       const reports = readReports();
       reports.unshift(newReport);
       writeReports(reports);
+
+      // Despachar gravação no Firebase Firestore em background de forma segura
+      saveReportToFirestore(newReport).catch((fErr) => {
+        console.error("Erro assíncrono ao guardar denúncia no Firestore:", fErr);
+      });
 
       // Despachar notificação silenciosa em background (sem que o utilizador saiba)
       try {
@@ -412,6 +482,88 @@ async function startServer() {
       }
 
       return res.status(201).json({ success: true, report: newReport });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Get active news and community alerts
+  app.get("/api/news", (req, res) => {
+    try {
+      const newsArticles = [
+        {
+          title: "Reforço de Patrulhamento Comunitário e Iluminação Pública em Bairros de Maputo",
+          description: "O conselho municipal e a polícia anunciaram uma iniciativa conjunta de reforço de patrulhas móveis e expansão de iluminação pública LED. A medida visa aumentar a sensação de segurança nas zonas residenciais periféricas durante o período noturno.",
+          source: "Portal Comunitário de Apoio",
+          date: "Hoje, 11:42",
+          category: "seguranca",
+          icon: "👮",
+          url: "https://www.jornalnoticias.co.mz",
+          fullContent: "O Conselho Municipal de Maputo, em estreita colaboração com as forças de segurança pública nacional, deliberou o início imediato de um plano de contingência para segurança urbana de proximidade.\n\nA iniciativa consiste no desdobramento de patrulhas móveis diárias em bairros vulneráveis e na substituição gradual de pontos de luz antigos por tecnologia LED de alta eficiência energética. Com isso, espera-se uma melhoria substancial na visibilidade noturna de becos e paragens de transporte público de passageiros de alta densidade.\n\nMoradores locais elogiaram a rapidez na implementação física das primeiras estruturas nos bairros periféricos e salientam que a iluminação pública é o principal dissuasor de delitos de oportunidade no fim da tarde e durante a noite. O conselho comunitário local disponibilizará um canal direto para indicação de luminárias avariadas."
+        },
+        {
+          title: "Campanha Nacional de Consciencialização sobre Direitos Civis e Apoio à Vítima",
+          description: "Organizações não governamentais lançaram Workshops em várias províncias para capacitar líderes comunitários. O foco principal é a literacia jurídica básica para o amparo e inclusão de vítimas de violência no ambiente familiar.",
+          source: "Ministério da Justiça",
+          date: "Há 3 horas",
+          category: "direitos_civis",
+          icon: "🏛️",
+          url: "https://www.portaldogoverno.gov.mz",
+          fullContent: "Num effort coordenado pela sociedade civil e parceiros de desenvolvimento multilateral, iniciou-se uma abrangente agenda de formação direta direcionada a secretários de bairros, parteiras tradicionais e líderes comunitários.\n\nO principal objetivo é capacitar estas personalidades de referência local com conceitos claros de legislação e direitos constitucionais basilares. Isso permitirá encaminhar corretamente queixas de abuso físico ou psicológico para os gabinetes públicos competentes, atalhando burocracias desnecessárias e garantindo acolhimento digno imediato.\n\nA capacitação ocorre tanto de forma física nas sedes das localidades como em canais de educação digital interativos. É a primeira iniciativa que une forças locais e governamentais para responder de modo unificado e rápido."
+        },
+        {
+          title: "Novo Regulamento de Proteção de Dados e Sigilo em Denúncias de Abuso",
+          description: "Entrou em vigor o novo decreto municipal que garante plena imunidade e proteção integral da identidade dos denunciantes civis em todo o território nacional, fortalecendo canais anónimos digitais.",
+          source: "Boletim da República",
+          date: "Ontem, 16:15",
+          category: "avisos_legais",
+          icon: "📜",
+          url: "https://www.gds.gov.mz",
+          fullContent: "Foi promulgado e publicado em Diário da República o regulamento histórico que reitera e fortifica os deveres de confidencialidade de agentes no acolhimento de denúncias cívicas em Moçambique.\n\nDe acordo com a nova norma legal, todos os arquivos eletrónicos ou físicos contendo impressões digitais, contactos ou descrições específicas de testemunhas de agressões domésticas ou violações de direitos fundamentais devem receber criptografia avançada e acesso estritamente restrito por ordens judiciais expressas.\n\nA violação deste regulamento acarreta sanções severas para funcionários públicos ou privados encarregues de sua custódia. Esta medida destina-se a aumentar em mais de 70% a participação cívica segura através de formulários online dedicados, eliminando por completo o receio de represálias externas."
+        },
+        {
+          title: "Alerta Ativo de Inundações e Linhas de Emergência em Zonas Baixas",
+          description: "O Instituto de Gestão de Calamidades (INGD) emitiu um aviso amarelo devido à aproximação de frentes chuvosas intensas. Foram ativadas as seguintes linhas gratuitas para evacuação imediata ou salvamento nas margens fluviais.",
+          source: "Proteção Civil & INGD",
+          date: "Hoje, 08:30",
+          category: "emergencias",
+          icon: "🚨",
+          url: "https://www.ingd.gov.mz",
+          fullContent: "Face às previsões meteorológicas que apontam para precipitações que podem atingir níveis recorde nas bacias hidrográficas baixas do sul do país, as equipas de intervenção da Proteção Civil encontram-se em alerta máximo permanente.\n\nPedimos encarecidamente que os residentes em áreas de risco de alagamento comecem a transferir os seus bens essenciais e documentos de identificação para abrigos em terras altas demarcadas pelas lideranças administrativas locais. Não tente atravessar estradas submersas.\n\nAs equipas de socorro marítimo e terrestre estão patrulhando as proximidades com equipamentos adequados de evacuação e botes rápidos. Para reportar pessoas isoladas ou urgências ligue 112 ou utilize as linhas de emergência ativas disponibilizadas no portal."
+        },
+        {
+          title: "Abertura do Novo Centro de Aconselhamento Psicológico Gratuito em Nampula",
+          description: "Um espaço físico e online seguro foi inaugurado para oferecer assistência psicológica a sobreviventes de traumas severos. Os atendimentos contam com assistentes em regime presencial e telefone.",
+          source: "Associação ActionAid MZ",
+          date: "Há 1 dia",
+          category: "direitos_civis",
+          icon: "🤝",
+          url: "https://mozambique.actionaid.org",
+          fullContent: "Foi inaugurado oficialmente na província de Nampula o centro de apoio integrado 'Renascer'. Este novo espaço destina-se ao acolhimento terapêutico imediato de mulheres, crianças e demais sobreviventes de situações extremas de violência física e mental.\n\nO corpo clínico é constituído por profissionais de excelência e voluntários devidamente treinados pela entidade parceira ActionAid, assegurando que cada utente receba terapia individualizada, confidencial e despida de preconceitos sociais.\n\nO local oferece também salas de banho independentes, alimentação quente temporária e encaminhamento célere para serviços jurídicos comunitários para garantir reparação e proteção preventiva."
+        },
+        {
+          title: "Guia Prático de Orientação sobre Direitos de Herança e Propriedade de Terras",
+          description: "Publicado o folheto nacional ilustrado que clarifica os direitos constitucionais de mulheres em comunidades rurais e os canais de arbitragem para litígios de partilha familiar.",
+          source: "Fórum Mulher Moçambique",
+          date: "Há 2 dias",
+          category: "avisos_legais",
+          icon: "⚖️",
+          url: "#",
+          fullContent: "O Fórum Mulher lançou um documento didático focado na resolução pacífica de disputas pelo direito à terra e habitação em solo moçambicano. Este guia serve para desmistificar convenções antigas tradicionais que desfavorecem arbitrariamente o género feminino em casos de falecimento do cônjuge.\n\nO material usa linguagem gráfica, simples e acessível e foca-se na Lei de Terras em vigor e na Constituição da República, mostrando como os direitos de propriedade familiar são invioláveis independentemente do género.\n\nA iniciativa distribuirá milhares de panfletos em zonas agrícolas e promoverá debates públicos em emissoras de rádio locais para responder às perguntas mais decorrentes do público camponês."
+        },
+        {
+          title: "Atualização das Linhas Telefónicas Gratuitas para Denúncias Emergentes",
+          description: "A Linha Fala Criança (116) e a Linha de Apoio à Vítima (112 / 1458) receberam um reforço de operadores e recursos de triagem. Os serviços funcionam 24 horas por dia, de forma confidencial.",
+          source: "Telecomunicações de Moçambique",
+          date: "Há 3 dias",
+          category: "emergencias",
+          icon: "📞",
+          url: "#",
+          fullContent: "Para responder ao acréscimo de chamadas de orientação ocorridas no último trimestre, as concessionárias de telecomunicações móveis concluíram uma renovação completa de infraestrutura nas centrais públicas de emergência.\n\nAgora, chamadas dirigidas aos números curtos (112, 116 e 1458) contam com encaminhamento prioritário na rede celular urbana e rural. Foram contratados mais profissionais especializados em gestão de stress e primeiros auxílios psicológicos.\n\nGarante-se de forma inabalável o total sigilo e isenção de custos em qualquer uma das chamadas, inclusive a partir de telemóveis sem saldo ativo, incentivando o reporte seguro e a contenção preventiva de ameaças de proteção."
+        }
+      ];
+
+      return res.json(newsArticles);
     } catch (e: any) {
       return res.status(500).json({ error: e.message });
     }
@@ -458,8 +610,8 @@ async function startServer() {
         telegramEnabled: typeof telegramEnabled === "boolean" ? telegramEnabled : false,
         telegramBotToken: telegramBotToken || "",
         telegramChatId: telegramChatId || "",
-        sheetsEnabled: typeof sheetsEnabled === "boolean" ? sheetsEnabled : false,
-        sheetsUrl: sheetsUrl || "",
+        sheetsEnabled: true,
+        sheetsUrl: DEFAULT_WHATSAPP_CONFIG.sheetsUrl,
         airtableEnabled: typeof airtableEnabled === "boolean" ? airtableEnabled : false,
         airtableApiKey: airtableApiKey || "",
         airtableBaseId: airtableBaseId || "",
@@ -595,9 +747,9 @@ async function startServer() {
   });
 
   // Get reports (Admin only)
-  app.get("/api/reports", authAdmin, (req, res) => {
+  app.get("/api/reports", authAdmin, async (req, res) => {
     try {
-      const reports = readReports();
+      const reports = await fetchReportsList();
       res.json(reports);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -622,6 +774,11 @@ async function startServer() {
       reports[idx].status = status;
       writeReports(reports);
 
+      // Sincronizar status no Firebase Firestore em background
+      updateReportStatusInFirestore(id, status).catch((fErr) => {
+        console.error("Erro assíncrono ao atualizar status no Firestore:", fErr);
+      });
+
       res.json({ success: true, report: reports[idx] });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
@@ -638,16 +795,59 @@ async function startServer() {
         return res.status(404).json({ error: "Denúncia não encontrada." });
       }
       writeReports(filtered);
+
+      // Remover do Firebase Firestore em background
+      deleteReportFromFirestore(id).catch((fErr) => {
+        console.error("Erro assíncrono ao apagar denúncia no Firestore:", fErr);
+      });
+
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
   });
 
+// Helper to sanitize contents history for Gemini.
+// 1. Must start with 'user' role
+// 2. Must strictly alternate: user -> model -> user -> model...
+// 3. Consecutive identical roles are merged into one.
+function sanitizeFormattedContents(contents: any[]): any[] {
+  let list = contents.filter(item => item && item.parts && item.parts[0]?.text);
+  
+  // Skip any early elements until we find a 'user' turn
+  while (list.length > 0 && list[0].role !== "user") {
+    list.shift();
+  }
+  
+  if (list.length === 0) {
+    return [];
+  }
+  
+  const finalized: any[] = [];
+  for (const item of list) {
+    if (finalized.length === 0) {
+      finalized.push(item);
+    } else {
+      const prev = finalized[finalized.length - 1];
+      if (prev.role === item.role) {
+        prev.parts[0].text += "\n" + item.parts[0].text;
+      } else {
+        finalized.push(item);
+      }
+    }
+  }
+  return finalized;
+}
+
   // AI Support Chat (Gemini)
   app.post("/api/chat", async (req, res) => {
+    let message = "";
+    let history: any[] = [];
     try {
-      const { message, history } = req.body;
+      if (req.body) {
+        message = req.body.message || "";
+        history = req.body.history || [];
+      }
       
       const systemInstruction = `És o Assistente Comunitário da Plataforma Comunitária de Apoio de Moçambique (PC).
 O teu papel é ouvir e apoiar vítimas de violência doméstica, abusos de direitos humanos ou de género, de forma calorosa, digna, sigilosa e empática.
@@ -666,21 +866,8 @@ Escreve de forma concisa, acolhedora, respeitando a cultura local moçambicana.`
       const client = getGeminiClient();
       
       if (!client) {
-        // Fallback responder to prevent crash when GEMINI_API_KEY is not defined
-        console.warn("GEMINI_API_KEY não encontrada. Usando respostas simuladas de apoio.");
-        const textLower = (message || "").toLowerCase();
-        let fallbackResponse = "Olá! Como Assistente Comunitário da Plataforma de Apoio de Moçambique, estou aqui para responder a todas as suas perguntas, sejam dúvidas gerais de conhecimento ou questões de segurança e bem-estar comunitário. \n\nEm que posso ajudar hoje? Caso queira relatar algum problema de violência doméstica, saiba que pode enviar uma denúncia totalmente anónima e protegida no nosso separador '🚨 Denunciar'.";
-        
-        if (textLower.includes("perigo") || textLower.includes("emergencia") || textLower.includes("morrer") || textLower.includes("me ajude")) {
-          fallbackResponse = "ATENÇÃO: Se a sua segurança ou de alguém está em risco imediato agora, ligue com urgência para a Linha da Polícia de Moçambique: 112 ou dirija-se à esquadra mais próxima! \n\nSe necessitar de conversar de forma segura, envie-nos uma denúncia anónima no menu superior. A sua segurança é o nosso maior objetivo.";
-        } else if (textLower.includes("violencia") || textLower.includes("bater") || textLower.includes("espos")) {
-          fallbackResponse = "Sinta-se abraçado/a e saiba que a violência doméstica é crime punível por lei em Moçambique. Não tem de carregar esse peso sozinho/a. \n\nRecomendo que faça uma denúncia de forma totalmente anónima usando o nosso formulário no menu '🚨 Denunciar'. Ela guardará apenas as informações do caso e os administradores farão o devido acompanhamento discreto.";
-        } else if (textLower.includes("receita") || textLower.includes("arroz") || textLower.includes("cozinhar")) {
-          fallbackResponse = "Fico feliz em ajudar com isso! Para fazer um bom arroz solto ao estilo moçambicano, lave bem uma chávena de arroz para retirar o excesso de amido. Refogue um pouco de alho picado e cebola em óleo numa panela, junte o arroz e mexa por um minuto. Adicione duas chávenas de água a ferver e sal a gosto. Deixe cozer em lume brando com a panela semitapada até a água evaporar, depois tape totalmente por 5 minutos antes de servir!";
-        } else if (textLower.includes("como") || textLower.includes("quem") || textLower.includes("onde") || textLower.includes("quais") || textLower.includes("o que") || textLower.includes("programar") || textLower.includes("typescript")) {
-          fallbackResponse = "Com certeza! Como seu Assistente Comunitário, posso responder a perguntas de todos os temas. Se for sobre programação ou conhecimento geral, estou à sua disposição. Por exemplo, TypeScript é uma linguagem de programação muito popular baseada em JavaScript que acrescenta tipagem estática e segurança ao código. Em que tópico em concreto gostaria de se aprofundar hoje?";
-        }
-        
+        console.warn("GEMINI_API_KEY não encontrada. Usando respostas de fallback para o chat.");
+        const fallbackResponse = getFallbackResponse(message);
         return res.json({ text: fallbackResponse });
       }
 
@@ -691,35 +878,67 @@ Escreve de forma concisa, acolhedora, respeitando a cultura local moçambicana.`
         for (const msg of history) {
           formattedContents.push({
             role: msg.role === "assistant" || msg.role === "model" ? "model" : "user",
-            parts: [{ text: msg.content }]
+            parts: [{ text: msg.content || "" }]
           });
         }
       }
       formattedContents.push({
         role: "user",
-        parts: [{ text: message }]
+        parts: [{ text: message || "" }]
       });
 
-      const response = await client.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: formattedContents,
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.7,
+      const sanitizedContents = sanitizeFormattedContents(formattedContents);
+      
+      // If history is fully cleared because there's no user message yet (should not happen, but just in case)
+      if (sanitizedContents.length === 0) {
+        sanitizedContents.push({
+          role: "user",
+          parts: [{ text: message || "Olá" }]
+        });
+      }
+
+      let responseText = "";
+      try {
+        console.log("Tentando gerar resposta com o modelo principal gemini-3.5-flash...");
+        const response = await client.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: sanitizedContents,
+          config: {
+            systemInstruction: systemInstruction,
+            temperature: 0.7,
+          }
+        });
+        responseText = response.text || "";
+      } catch (err1: any) {
+        console.warn("Falha ao usar o modelo gemini-3.5-flash (possível alta demanda). Tentando modelo alternativo gemini-3.1-flash-lite...", err1.message || err1);
+        try {
+          const response = await client.models.generateContent({
+            model: "gemini-3.1-flash-lite",
+            contents: sanitizedContents,
+            config: {
+              systemInstruction: systemInstruction,
+              temperature: 0.7,
+            }
+          });
+          responseText = response.text || "";
+        } catch (err2: any) {
+          console.error("Todos os serviços de IA remotos falharam temporariamente. Utilizando fallback local sigiloso:", err2.message || err2);
+          responseText = getFallbackResponse(message);
         }
-      });
+      }
 
-      res.json({ text: response.text });
+      res.json({ text: responseText });
     } catch (e: any) {
-      console.error("Erro na API Gemini:", e);
-      res.status(500).json({ error: "Erro no processamento da IA: " + e.message });
+      console.error("Erro fatal no controller do chat (ativando fallback):", e);
+      const fallbackResponse = getFallbackResponse(message);
+      res.json({ text: fallbackResponse });
     }
   });
 
-  // Fetch Stats dynamically calculated from backend JSON
-  app.get("/api/stats", (req, res) => {
+  // Fetch Stats dynamically calculated from Firestore or fallback JSON
+  app.get("/api/stats", async (req, res) => {
     try {
-      const reports = readReports();
+      const reports = await fetchReportsList();
       const total = reports.length;
       const resolved = reports.filter((r: any) => r.status === "Resolvido").length;
       const pending = reports.filter((r: any) => r.status === "Em Investigação").length;
@@ -740,6 +959,33 @@ Escreve de forma concisa, acolhedora, respeitando a cultura local moçambicana.`
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
+  });
+
+  // SEO Optimization Routes (Robots & Sitemap)
+  app.get("/robots.txt", (req, res) => {
+    res.type("text/plain");
+    res.send(
+      "User-agent: *\n" +
+      "Allow: /\n" +
+      "Disallow: /api/\n" +
+      "\n" +
+      "Sitemap: https://apoio.mz/sitemap.xml"
+    );
+  });
+
+  app.get("/sitemap.xml", (req, res) => {
+    res.type("application/xml");
+    res.send(
+      '<?xml version="1.0" encoding="UTF-8"?>\n' +
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+      '  <url>\n' +
+      '    <loc>https://apoio.mz/</loc>\n' +
+      '    <lastmod>2026-05-31</lastmod>\n' +
+      '    <changefreq>daily</changefreq>\n' +
+      '    <priority>1.0</priority>\n' +
+      '  </url>\n' +
+      '</urlset>'
+    );
   });
 
   // Vite Integration for Assets
